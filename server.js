@@ -75,6 +75,8 @@ function syncSharedTargetsToConfig(projectDir) {
 // Get merged project data ensuring ALL shared targets are combined and synced
 function getMergedProjectData(projectDir) {
   syncSharedTargetsToConfig(projectDir);
+  SqitchPlanParser.sanitizePlanFile(path.join(projectDir, 'sqitch.plan'));
+
   const projectData = SqitchPlanParser.parseProject(projectDir);
   const shared = getSharedTargets();
 
@@ -329,6 +331,7 @@ app.post('/api/projects/save-meta', (req, res) => {
     }
 
     fs.writeFileSync(planPath, planContent, 'utf8');
+    SqitchPlanParser.sanitizePlanFile(planPath);
   }
 
   let confContent = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf8') : '[core]\n  engine = pg\n';
@@ -567,6 +570,7 @@ app.post('/api/target/test', (req, res) => {
   const { target, mode = 'auto' } = req.body;
 
   syncSharedTargetsToConfig(currentProjectDir);
+  SqitchPlanParser.sanitizePlanFile(path.join(currentProjectDir, 'sqitch.plan'));
 
   const runner = new SqitchRunner({ mode, target });
   let outputText = '';
@@ -604,6 +608,7 @@ wss.on('connection', (ws) => {
       if (!action) return;
 
       syncSharedTargetsToConfig(currentProjectDir);
+      SqitchPlanParser.sanitizePlanFile(path.join(currentProjectDir, 'sqitch.plan'));
 
       const runner = new SqitchRunner({ mode, target });
 
