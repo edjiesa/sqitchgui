@@ -381,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       alert(e.message);
     }
-  });
+  }
 
   // Save Project Metadata (Name, URI)
   btnSubmitSaveProjMeta.addEventListener('click', async () => {
