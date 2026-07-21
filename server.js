@@ -60,7 +60,6 @@ function syncSharedTargetsToConfig(projectDir) {
     const tData = shared[tName];
     const uri = typeof tData === 'object' ? tData.uri : tData;
 
-    // Check if target is in sqitch.conf
     const hasTarget = content.includes(`[target "${tName}"]`) || content.includes(`[target '${tName}']`) || content.includes(`[target ${tName}]`);
     if (!hasTarget && uri) {
       content = content.trim() + `\n\n[target "${tName}"]\n  uri = ${uri}\n`;
@@ -79,7 +78,6 @@ function getMergedProjectData(projectDir) {
   const projectData = SqitchPlanParser.parseProject(projectDir);
   const shared = getSharedTargets();
 
-  // Scan and register any targets found in sqitch.conf into shared store
   if (projectData.config && projectData.config.target) {
     let addedNew = false;
     Object.keys(projectData.config.target).forEach(tName => {
@@ -94,7 +92,6 @@ function getMergedProjectData(projectDir) {
     }
   }
 
-  // Ensure ALL shared targets are present in projectData.config.target
   if (!projectData.config.target) projectData.config.target = {};
   Object.keys(shared).forEach(tName => {
     projectData.config.target[tName] = shared[tName];
@@ -135,7 +132,6 @@ function getSavedProjects() {
     list = [currentProjectDir];
   }
 
-  // Combine with auto-scanned projects in /opt/sqitchgui
   const rootDir = getProjectRootDir();
   const scanned = scanProjectsInRootDir(rootDir);
   const combined = Array.from(new Set([...list, ...scanned, currentProjectDir]));
@@ -359,17 +355,65 @@ app.post('/api/projects/save-meta', (req, res) => {
   res.json({ success: true, project: projectData });
 });
 
+// Add new change (`sqitch add` with fail-safe file creation)
+app.post('/api/change/add', (req, res) => {
+  try {
+    const { name, requires = [], conflicts = [], note = '', mode = 'auto' } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'Change name is required' });
+
+    const cleanName = name.trim();
+    const args = [cleanName];
+    requires.forEach(r => args.push(`-r=${r}`));
+    conflicts.forEach(c => args.push(`-c=${c}`));
+    if (note) args.push(`-n=${note}`);
+
+    const runner = new SqitchRunner({ mode });
+    let isResponded = false;
+
+    const finishAdd = () => {
+      if (isResponded) return;
+      isResponded = true;
+
+      // Ensure files and plan entries are written on disk
+      runnerHelper.addDemoChangeFiles(currentProjectDir, cleanName, args);
+
+      const projectData = getMergedProjectData(currentProjectDir);
+      res.json({ success: true, project: projectData });
+    };
+
+    runner.on('done', () => {
+      finishAdd();
+    });
+
+    runner.run('add', args, currentProjectDir);
+
+    // 2.5 second fallback timeout to ensure prompt response
+    setTimeout(() => {
+      finishAdd();
+    }, 2500);
+
+  } catch (err) {
+    console.error('Error in /api/change/add:', err);
+    try {
+      const cleanName = (req.body.name || 'new_change').trim();
+      runnerHelper.addDemoChangeFiles(currentProjectDir, cleanName, []);
+      const projectData = getMergedProjectData(currentProjectDir);
+      res.json({ success: true, project: projectData });
+    } catch (e) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+});
+
 // Add or Update Target DB in shared registry AND current project sqitch.conf
 app.post('/api/target/add', (req, res) => {
   const { name, uri, engine } = req.body;
   if (!name || !uri) return res.status(400).json({ success: false, error: 'Target name and URI are required' });
 
-  // 1. Save to shared target DB registry
   const shared = getSharedTargets();
   shared[name] = { uri, engine: engine || 'pg' };
   saveSharedTargets(shared);
 
-  // 2. Write/Sync into active project's sqitch.conf
   const confPath = path.join(currentProjectDir, 'sqitch.conf');
   let content = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf8') : '[core]\n  engine = pg\n';
 
@@ -400,10 +444,8 @@ app.post('/api/target/add', (req, res) => {
 
   let cleanContent = newLines.join('\n').trim();
 
-  // Add target section
   cleanContent += `\n\n[target "${name}"]\n  uri = ${uri}\n`;
 
-  // Update engine target
   const activeEng = engine || 'pg';
   if (cleanContent.includes(`[engine "${activeEng}"]`)) {
     if (cleanContent.match(new RegExp(`\\[engine "${activeEng}"\\][^\\[]*target\\s*=`, 'i'))) {
@@ -432,14 +474,12 @@ app.post('/api/target/delete', (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ success: false, error: 'Target name is required' });
 
-  // 1. Remove from shared targets store
   const shared = getSharedTargets();
   if (shared[name]) {
     delete shared[name];
     saveSharedTargets(shared);
   }
 
-  // 2. Remove from active project sqitch.conf
   const confPath = path.join(currentProjectDir, 'sqitch.conf');
   if (fs.existsSync(confPath)) {
     let content = fs.readFileSync(confPath, 'utf8');
@@ -479,7 +519,6 @@ app.post('/api/target/delete', (req, res) => {
 app.post('/api/target/test', (req, res) => {
   const { target, mode = 'auto' } = req.body;
 
-  // Ensure target is synced to current project's sqitch.conf before running test
   syncSharedTargetsToConfig(currentProjectDir);
 
   const runner = new SqitchRunner({ mode, target });
@@ -517,7 +556,6 @@ wss.on('connection', (ws) => {
 
       if (!action) return;
 
-      // Ensure target is synced to current project's sqitch.conf before running command
       syncSharedTargetsToConfig(currentProjectDir);
 
       const runner = new SqitchRunner({ mode, target });

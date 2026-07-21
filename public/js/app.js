@@ -211,7 +211,14 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ name: projName, engine })
       });
 
-      const data = await res.json();
+      const resText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(resText);
+      } catch (err) {
+        throw new Error(`Server response error: ${resText.slice(0, 100)}`);
+      }
+
       if (data.success) {
         createProjNameInput.value = '';
         elCurrentPathText.textContent = data.currentProjectDir;
@@ -255,7 +262,14 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: targetPath })
       });
-      const data = await res.json();
+      const resText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(resText);
+      } catch (err) {
+        throw new Error(`Server response error: ${resText.slice(0, 100)}`);
+      }
+
       if (data.success) {
         elCurrentPathText.textContent = data.currentProjectDir;
         switchProjectPathInput.value = data.currentProjectDir;
@@ -282,7 +296,14 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, uri })
       });
-      const data = await res.json();
+      const resText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(resText);
+      } catch (err) {
+        throw new Error(`Server response error: ${resText.slice(0, 100)}`);
+      }
+
       if (data.success) {
         renderProject(data.project);
         await fetchAllProjectsList();
@@ -303,7 +324,14 @@ document.addEventListener('DOMContentLoaded', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: pathToDelete })
       });
-      const data = await res.json();
+      const resText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(resText);
+      } catch (err) {
+        throw new Error(`Server response error: ${resText.slice(0, 100)}`);
+      }
+
       if (data.success) {
         renderProject(data.project);
         await fetchAllProjectsList();
@@ -502,7 +530,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (prevSelectedTarget && Array.from(elTargetSelect.options).some(o => o.value === prevSelectedTarget)) {
       elTargetSelect.value = prevSelectedTarget;
     } else if (elTargetSelect.options.length > 1) {
-      // Auto select first target if available
       elTargetSelect.selectedIndex = 1;
     }
 
@@ -718,12 +745,22 @@ document.addEventListener('DOMContentLoaded', () => {
           mode: elModeSelect.value
         })
       });
-      const data = await res.json();
+
+      const resText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(resText);
+      } catch (jsonErr) {
+        throw new Error(`Server error: ${resText.slice(0, 100)}`);
+      }
+
       if (data.success) {
         modalAddChange.classList.remove('show');
         renderProject(data.project);
         appendTerminalLog({ type: 'success', text: `Created new migration change: ${name}` });
         selectChangeForEditor(name);
+      } else {
+        alert(data.error || 'Failed to create change');
       }
     } catch (e) {
       alert(e.message);
