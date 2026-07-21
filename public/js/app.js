@@ -381,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       alert(e.message);
     }
-  }
+  });
 
   // Save Project Metadata (Name, URI)
   btnSubmitSaveProjMeta.addEventListener('click', async () => {
@@ -412,15 +412,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Delete Saved Project from List
+  // Delete Saved Project from List & Server Folder
   window.deleteSavedProject = async function(pathToDelete) {
-    if (!confirm(`Remove project path '${pathToDelete}' from saved list?`)) return;
+    if (!confirm(`Hapus project '${pathToDelete}' dari daftar project?`)) return;
+
+    const deletePhysicalFolder = confirm(`Apakah Anda juga ingin menghapus FOLDER FISIK project ini dari server (${pathToDelete})?`);
 
     try {
       const res = await fetch('/api/projects/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: pathToDelete })
+        body: JSON.stringify({ path: pathToDelete, deleteFolder: deletePhysicalFolder })
       });
       const resText = await res.text();
       let data;
@@ -435,7 +437,9 @@ document.addEventListener('DOMContentLoaded', () => {
         await fetchAllProjectsList();
         elCurrentPathText.textContent = data.currentProjectDir;
         switchProjectPathInput.value = data.currentProjectDir;
-        appendTerminalLog({ type: 'info', text: `Removed project path '${pathToDelete}' from list.` });
+        appendTerminalLog({ type: 'info', text: `Berhasil menghapus project '${pathToDelete}'` });
+      } else {
+        alert(data.error || 'Gagal menghapus project');
       }
     } catch (e) {
       alert(e.message);
@@ -599,10 +603,10 @@ document.addEventListener('DOMContentLoaded', () => {
   btnDeleteTarget.addEventListener('click', async () => {
     const selectedTarget = elTargetSelect.value;
     if (!selectedTarget) {
-      return alert('Please select a specific Target DB from the dropdown to delete!');
+      return alert('Silakan pilih Target DB yang ingin dihapus dari dropdown terlebih dahulu!');
     }
 
-    if (!confirm(`Are you sure you want to delete DB target '${selectedTarget}' from sqitch.conf?`)) {
+    if (!confirm(`Apakah Anda yakin ingin menghapus Target DB '${selectedTarget}' secara permanen?`)) {
       return;
     }
 
@@ -616,9 +620,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (data.success) {
         renderProject(data.project);
-        appendTerminalLog({ type: 'success', text: `Deleted target '${selectedTarget}' from sqitch.conf` });
+        appendTerminalLog({ type: 'success', text: `Berhasil menghapus target '${selectedTarget}'` });
       } else {
-        alert(data.error || 'Failed to delete target');
+        alert(data.error || 'Gagal menghapus target');
       }
     } catch (e) {
       alert(e.message);

@@ -17,8 +17,10 @@ let currentProjectDir = process.cwd();
 // Default root directory for storing projects (/opt/sqitchgui or C:\opt\sqitchgui)
 const BASE_PROJECT_ROOT = process.platform === 'win32' ? 'C:\\opt\\sqitchgui' : '/opt/sqitchgui';
 
-// Saved projects storage file
+// Saved projects storage file & deleted projects blacklist
 const PROJECTS_STORE = path.join(__dirname, 'saved_projects.json');
+const DELETED_PROJECTS_STORE = path.join(__dirname, 'deleted_projects.json');
+
 // Shared Target DB registry across all projects
 const SHARED_TARGETS_STORE = path.join(__dirname, 'shared_targets.json');
 
@@ -44,6 +46,25 @@ function saveSharedTargets(targetsObj) {
     fs.writeFileSync(SHARED_TARGETS_STORE, JSON.stringify(targetsObj, null, 2), 'utf8');
   } catch (e) {
     console.error('Failed to save shared targets:', e);
+  }
+}
+
+function getDeletedBlacklist() {
+  if (fs.existsSync(DELETED_PROJECTS_STORE)) {
+    try {
+      return JSON.parse(fs.readFileSync(DELETED_PROJECTS_STORE, 'utf8'));
+    } catch (e) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function saveDeletedBlacklist(list) {
+  try {
+    fs.writeFileSync(DELETED_PROJECTS_STORE, JSON.stringify(list, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Failed to save deleted blacklist:', e);
   }
 }
 
@@ -136,7 +157,10 @@ function getSavedProjects() {
 
   const rootDir = getProjectRootDir();
   const scanned = scanProjectsInRootDir(rootDir);
-  const combined = Array.from(new Set([...list, ...scanned, currentProjectDir]));
+  const blacklist = getDeletedBlacklist().map(p => path.resolve(p));
+
+  const combined = Array.from(new Set([...list, ...scanned, currentProjectDir]))
+    .filter(pPath => !blacklist.includes(path.resolve(pPath)));
 
   return combined;
 }
@@ -410,16 +434,36 @@ app.post('/api/projects/switch', (req, res) => {
   res.json({ success: true, project: projectData, savedProjects: list, currentProjectDir });
 });
 
-// Delete/Remove project from saved projects list
+// Delete/Remove project from saved projects list & blacklist/rmdir
 app.post('/api/projects/delete', (req, res) => {
-  const { path: targetPath } = req.body;
+  const { path: targetPath, deleteFolder = false } = req.body;
   if (!targetPath) return res.status(400).json({ success: false, error: 'Path is required' });
 
+  const resolvedTarget = path.resolve(targetPath);
+
+  // 1. Add to deleted blacklist store to prevent scanner from re-adding it
+  const blacklist = getDeletedBlacklist();
+  if (!blacklist.includes(resolvedTarget)) {
+    blacklist.push(resolvedTarget);
+    saveDeletedBlacklist(blacklist);
+  }
+
+  // 2. Remove from saved projects list
   let list = getSavedProjects();
-  list = list.filter(p => path.resolve(p) !== path.resolve(targetPath));
+  list = list.filter(p => path.resolve(p) !== resolvedTarget);
   saveSavedProjects(list);
 
-  if (path.resolve(currentProjectDir) === path.resolve(targetPath)) {
+  // 3. Delete physical folder if requested and folder exists
+  if (deleteFolder && fs.existsSync(resolvedTarget)) {
+    try {
+      fs.rmSync(resolvedTarget, { recursive: true, force: true });
+    } catch (e) {
+      console.error('Error deleting physical project folder:', e);
+    }
+  }
+
+  // If currently active project was deleted, switch to remaining project or default
+  if (path.resolve(currentProjectDir) === resolvedTarget) {
     currentProjectDir = list.length > 0 ? list[0] : process.cwd();
   }
 
@@ -641,17 +685,19 @@ app.post('/api/target/add', (req, res) => {
   res.json({ success: true, project: projectData, addedTarget: name });
 });
 
-// Delete database target from shared registry AND sqitch.conf
+// Delete database target from shared registry AND sqitch.conf completely
 app.post('/api/target/delete', (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ success: false, error: 'Target name is required' });
 
+  // 1. Remove from shared targets store
   const shared = getSharedTargets();
   if (shared[name]) {
     delete shared[name];
     saveSharedTargets(shared);
   }
 
+  // 2. Clean up sqitch.conf in current project
   const confPath = path.join(currentProjectDir, 'sqitch.conf');
   if (fs.existsSync(confPath)) {
     let content = fs.readFileSync(confPath, 'utf8');
@@ -675,15 +721,25 @@ app.post('/api/target/delete', (req, res) => {
         inTargetSection = false;
       }
 
-      if (!inTargetSection) {
-        newLines.push(line);
+      if (inTargetSection) {
+        continue;
       }
+
+      if (trimmed.match(new RegExp(`^target\\s*=\\s*["']?${name}["']?$`, 'i'))) {
+        continue;
+      }
+
+      newLines.push(line);
     }
 
     fs.writeFileSync(confPath, newLines.join('\n'), 'utf8');
   }
 
   const projectData = getMergedProjectData(currentProjectDir);
+  if (projectData.config && projectData.config.target && projectData.config.target[name]) {
+    delete projectData.config.target[name];
+  }
+
   res.json({ success: true, message: `Target '${name}' deleted successfully`, project: projectData });
 });
 
