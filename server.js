@@ -243,19 +243,47 @@ app.post('/api/change/add', (req, res) => {
   runner.run('add', args, currentProjectDir);
 });
 
-// Add new target or engine connection
+// Add or Update target in sqitch.conf
 app.post('/api/target/add', (req, res) => {
   const { name, uri, engine } = req.body;
   if (!name || !uri) return res.status(400).json({ success: false, error: 'Target name and URI are required' });
 
   const confPath = path.join(currentProjectDir, 'sqitch.conf');
-  let targetBlock = `\n[target "${name}"]\n  uri = ${uri}\n`;
+  let content = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf8') : '[core]\n  engine = pg\n';
 
-  if (engine) {
-    targetBlock += `\n[engine "${engine}"]\n  target = ${name}\n`;
+  // If target section already exists, strip old section to overwrite cleanly
+  const lines = content.split(/\r?\n/);
+  const newLines = [];
+  let inTargetSection = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      if (trimmed === `[target "${name}"]` || trimmed === `[target '${name}']` || trimmed === `[target ${name}]`) {
+        inTargetSection = true;
+        continue;
+      } else {
+        inTargetSection = false;
+      }
+    }
+
+    if (!inTargetSection) {
+      newLines.push(line);
+    }
   }
 
-  fs.appendFileSync(confPath, targetBlock, 'utf8');
+  let cleanContent = newLines.join('\n').trim();
+  cleanContent += `\n\n[target "${name}"]\n  uri = ${uri}\n`;
+
+  if (engine) {
+    if (!cleanContent.includes(`[engine "${engine}"]`)) {
+      cleanContent += `\n[engine "${engine}"]\n  target = ${name}\n`;
+    }
+  }
+
+  fs.writeFileSync(confPath, cleanContent, 'utf8');
 
   const projectData = SqitchPlanParser.parseProject(currentProjectDir);
   res.json({ success: true, project: projectData });
@@ -281,7 +309,7 @@ app.post('/api/target/delete', (req, res) => {
     const trimmed = line.trim();
 
     if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      if (trimmed === `[target "${name}"]` || trimmed === `[target '${name}']`) {
+      if (trimmed === `[target "${name}"]` || trimmed === `[target '${name}']` || trimmed === `[target ${name}]`) {
         inTargetSection = true;
         continue;
       } else {

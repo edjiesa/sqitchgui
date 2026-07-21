@@ -241,8 +241,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  window.openSavedProject = function(path') {
-    switchProjectDirectory(path');
+  window.openSavedProject = function(pathStr) {
+    switchProjectDirectory(pathStr);
   };
 
   function renderSavedProjectsList() {
@@ -256,6 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
     savedProjectsList.innerHTML = savedProjects.map(p => {
       const isActive = p.toLowerCase() === currentNorm;
       const cardClass = isActive ? 'project-item-card is-active' : 'project-item-card';
+      const escapedPath = p.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
       return `
         <div class="${cardClass}">
@@ -265,8 +266,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ${isActive ? '<span class="badge badge-native" style="font-size:10px; padding: 1px 6px;">Active</span>' : ''}
           </div>
           <div class="proj-actions">
-            ${!isActive ? `<button class="btn btn-primary btn-xs" onclick="window.openSavedProject('${p.replace(/\\/g, '\\\\')}')"><i class="ri-folder-open-line"></i> Open</button>` : ''}
-            <button class="btn btn-danger-outline btn-xs" onclick="window.deleteSavedProject('${p.replace(/\\/g, '\\\\')}')" title="Remove from list"><i class="ri-delete-bin-line"></i></button>
+            ${!isActive ? `<button class="btn btn-primary btn-xs" onclick="window.openSavedProject('${escapedPath}')"><i class="ri-folder-open-line"></i> Open</button>` : ''}
+            <button class="btn btn-danger-outline btn-xs" onclick="window.deleteSavedProject('${escapedPath}')" title="Remove from list"><i class="ri-delete-bin-line"></i></button>
           </div>
         </div>
       `;
@@ -385,11 +386,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Render Targets Dropdown
     elTargetSelect.innerHTML = '<option value="">Default Target</option>';
-    if (config.target) {
+    if (config.target && typeof config.target === 'object') {
       Object.keys(config.target).forEach(tName => {
+        const targetObj = config.target[tName];
+        const targetUri = typeof targetObj === 'object' ? (targetObj.uri || '') : targetObj;
         const opt = document.createElement('option');
         opt.value = tName;
-        opt.textContent = `${tName} (${config.target[tName].uri || ''})`;
+        opt.textContent = `${tName} (${targetUri})`;
         elTargetSelect.appendChild(opt);
       });
     }
@@ -665,6 +668,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const pass = targetPass.value.trim();
     const db = targetDbName.value.trim() || 'app_db';
 
+    // Auto fill Target Name if user typed db or host and target name is empty
+    if (!newTargetName.value.trim()) {
+      if (db && db !== 'app_db') {
+        newTargetName.value = db;
+      } else if (host && host !== 'localhost') {
+        newTargetName.value = 'db_target';
+      }
+    }
+
     let userPass = '';
     if (user) {
       userPass = pass ? `${user}:${pass}@` : `${user}@`;
@@ -722,11 +734,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btnSubmitAddTarget').addEventListener('click', async () => {
     cleanTargetUri();
-    const name = newTargetName.value.trim();
+    let name = newTargetName.value.trim();
     const uri = newTargetUri.value.trim();
     const engine = targetEngineSelect.value;
 
-    if (!name || !uri) return alert('Target name and URI are required!');
+    if (!name) {
+      name = targetDbName.value.trim() || 'target_db';
+    }
+
+    if (!uri) return alert('Target URI is required!');
 
     try {
       const res = await fetch('/api/target/add', {
@@ -738,7 +754,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.success) {
         modalAddTarget.classList.remove('show');
         renderProject(data.project);
-        appendTerminalLog({ type: 'success', text: `Added DB Target '${name}' (${engine.toUpperCase()}): ${uri}` });
+        appendTerminalLog({ type: 'success', text: `Added/Updated DB Target '${name}' (${engine.toUpperCase()}): ${uri}` });
       }
     } catch (e) {
       alert(e.message);
