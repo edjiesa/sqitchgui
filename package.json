@@ -1,0 +1,26 @@
+{
+  "name": "sqitch-studio",
+  "version": "1.0.0",
+  "description": "A modern, beautiful Web & Desktop GUI for database migrations using Sqitch",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "sqitch",
+    "gui",
+    "database",
+    "migrations",
+    "postgres",
+    "mysql",
+    "sqlite"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.17.0"
+  }
+}

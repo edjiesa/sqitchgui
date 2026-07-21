@@ -1,0 +1,177 @@
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const path = require('path');
+const fs = require('fs');
+
+const SqitchPlanParser = require('./lib/sqitch-parser');
+const SqitchRunner = require('./lib/sqitch-runner');
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+const PORT = process.env.PORT || 3000;
+let currentProjectDir = process.cwd();
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Ensure demo project exists if project is empty
+const runnerHelper = new SqitchRunner();
+if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
+  runnerHelper.initDemoProjectFiles(currentProjectDir, 'sqitch_demo_db', 'pg');
+}
+
+// -------------------------------------------------------------
+// REST API ROUTES
+// -------------------------------------------------------------
+
+// Environment check
+app.get('/api/env', (req, res) => {
+  const envInfo = SqitchRunner.detectEnvironment();
+  res.json({
+    success: true,
+    env: envInfo,
+    currentProjectDir
+  });
+});
+
+// Get project details and plan
+app.get('/api/project', (req, res) => {
+  try {
+    const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+    res.json({ success: true, project: projectData });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Change project directory
+app.post('/api/project/path', (req, res) => {
+  const { path: newPath } = req.body;
+  if (!newPath || !fs.existsSync(newPath)) {
+    return res.status(400).json({ success: false, error: 'Invalid directory path.' });
+  }
+
+  currentProjectDir = path.resolve(newPath);
+  if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
+    runnerHelper.initDemoProjectFiles(currentProjectDir, 'app_db', 'pg');
+  }
+
+  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  res.json({ success: true, project: projectData });
+});
+
+// Initialize new sqitch project
+app.post('/api/project/init', (req, res) => {
+  const { name = 'app_db', engine = 'pg' } = req.body;
+  runnerHelper.initDemoProjectFiles(currentProjectDir, name, engine);
+  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  res.json({ success: true, project: projectData });
+});
+
+// Read SQL script files for a change
+app.get('/api/change/files', (req, res) => {
+  const { name } = req.query;
+  if (!name) return res.status(400).json({ success: false, error: 'Change name required' });
+
+  const files = {
+    deploy: '',
+    revert: '',
+    verify: ''
+  };
+
+  ['deploy', 'revert', 'verify'].forEach(type => {
+    const filePath = path.join(currentProjectDir, type, `${name}.sql`);
+    if (fs.existsSync(filePath)) {
+      files[type] = fs.readFileSync(filePath, 'utf8');
+    }
+  });
+
+  res.json({ success: true, name, files });
+});
+
+// Save SQL script file for a change
+app.post('/api/change/files', (req, res) => {
+  const { name, type, content } = req.body;
+  if (!name || !type || !['deploy', 'revert', 'verify'].includes(type)) {
+    return res.status(400).json({ success: false, error: 'Invalid parameters.' });
+  }
+
+  const dirPath = path.join(currentProjectDir, type);
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+
+  const filePath = path.join(dirPath, `${name}.sql`);
+  fs.writeFileSync(filePath, content, 'utf8');
+
+  res.json({ success: true, message: `Updated ${type}/${name}.sql` });
+});
+
+// Add new change
+app.post('/api/change/add', (req, res) => {
+  const { name, requires = [], conflicts = [], note = '', mode = 'auto' } = req.body;
+  if (!name) return res.status(400).json({ success: false, error: 'Change name is required' });
+
+  const args = [name];
+  requires.forEach(r => args.push(`-r=${r}`));
+  conflicts.forEach(c => args.push(`-c=${c}`));
+  if (note) args.push(`-n=${note}`);
+
+  const runner = new SqitchRunner({ mode });
+  runner.on('done', () => {
+    const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+    res.json({ success: true, project: projectData });
+  });
+
+  runner.run('add', args, currentProjectDir);
+});
+
+// Add new target
+app.post('/api/target/add', (req, res) => {
+  const { name, uri } = req.body;
+  if (!name || !uri) return res.status(400).json({ success: false, error: 'Target name and URI are required' });
+
+  const confPath = path.join(currentProjectDir, 'sqitch.conf');
+  const targetBlock = `\n[target "${name}"]\n  uri = ${uri}\n`;
+  fs.appendFileSync(confPath, targetBlock, 'utf8');
+
+  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  res.json({ success: true, project: projectData });
+});
+
+// -------------------------------------------------------------
+// WEBSOCKET LOG STREAMING
+// -------------------------------------------------------------
+wss.on('connection', (ws) => {
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      const { action, target, mode = 'auto', extraArgs = [] } = data;
+
+      if (!action) return;
+
+      const runner = new SqitchRunner({ mode, target });
+
+      runner.on('log', (logEntry) => {
+        ws.send(JSON.stringify({ type: 'log', data: logEntry }));
+      });
+
+      runner.on('done', (result) => {
+        const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+        ws.send(JSON.stringify({ type: 'done', data: result, project: projectData }));
+      });
+
+      runner.run(action, extraArgs, currentProjectDir);
+
+    } catch (err) {
+      ws.send(JSON.stringify({ type: 'log', data: { type: 'error', text: err.message } }));
+    }
+  });
+});
+
+server.listen(PORT, () => {
+  console.log(`=======================================================`);
+  console.log(`  Sqitch Studio GUI is running on http://localhost:${PORT}`);
+  console.log(`=======================================================`);
+});

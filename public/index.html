@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sqitch Studio - Database Migration GUI</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Remix Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="dark-theme">
+
+  <!-- TOP HEADER & BAR -->
+  <header class="app-header">
+    <div class="logo-group">
+      <div class="logo-icon">
+        <i class="ri-git-branch-line"></i>
+      </div>
+      <div class="logo-text">
+        <h1>Sqitch Studio</h1>
+        <span class="version-badge">v1.0.0</span>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="project-path-box" id="projectPathBox" title="Click to change working directory">
+        <i class="ri-folder-open-line"></i>
+        <span id="currentPathText">Loading project...</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="mode-selector">
+        <label><i class="ri-cpu-line"></i> Engine Mode:</label>
+        <select id="modeSelect">
+          <option value="auto">Auto (Detect)</option>
+          <option value="native">Native CLI</option>
+          <option value="docker">Docker Container</option>
+          <option value="simulated">Simulated / Demo</option>
+        </select>
+      </div>
+
+      <div class="target-selector">
+        <label><i class="ri-database-2-line"></i> Target DB:</label>
+        <select id="targetSelect">
+          <option value="">Default Target</option>
+        </select>
+        <button class="btn btn-icon btn-secondary" id="btnAddTarget" title="Add New Target">
+          <i class="ri-add-line"></i>
+        </button>
+      </div>
+
+      <span class="env-status-badge badge-simulated" id="envStatusBadge">
+        <i class="ri-flask-line"></i> Simulation
+      </span>
+    </div>
+  </header>
+
+  <!-- MAIN APP CONTAINER -->
+  <main class="app-container">
+
+    <!-- LEFT SIDEBAR: METADATA & QUICK COMMANDS -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <h3 class="section-title"><i class="ri-information-line"></i> Project Info</h3>
+        <div class="info-card">
+          <div class="info-row">
+            <span class="label">Project Name:</span>
+            <span class="valueHighlight" id="infoProjectName">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Engine:</span>
+            <span class="badge badge-engine" id="infoEngine">-</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Total Changes:</span>
+            <span class="value" id="infoTotalChanges">0</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Tags:</span>
+            <span class="value" id="infoTotalTags">0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3 class="section-title"><i class="ri-flashlight-line"></i> Quick Actions</h3>
+        <div class="action-buttons">
+          <button class="btn btn-success btn-block" id="btnDeploy">
+            <i class="ri-play-circle-line"></i> Deploy All
+          </button>
+          <button class="btn btn-warning btn-block" id="btnRevert">
+            <i class="ri-history-line"></i> Revert
+          </button>
+          <button class="btn btn-info btn-block" id="btnVerify">
+            <i class="ri-checkbox-circle-line"></i> Verify DB
+          </button>
+          <button class="btn btn-secondary btn-block" id="btnStatus">
+            <i class="ri-pulse-line"></i> Check Status
+          </button>
+          <button class="btn btn-primary btn-block" id="btnAddChange">
+            <i class="ri-add-circle-line"></i> New Change (`sqitch add`)
+          </button>
+        </div>
+      </div>
+
+      <div class="sidebar-section tags-section">
+        <h3 class="section-title"><i class="ri-bookmark-3-line"></i> Release Tags</h3>
+        <div class="tags-list" id="tagsList">
+          <span class="no-tags">No tags defined yet</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTENT CENTER: TIMELINE & PLAN INSPECTOR -->
+    <section class="content-area">
+
+      <!-- PLAN TIMELINE HEADER -->
+      <div class="content-header">
+        <div class="tab-group">
+          <button class="tab-btn active" data-tab="timeline">
+            <i class="ri-node-tree"></i> Plan Timeline (`sqitch.plan`)
+          </button>
+          <button class="tab-btn" data-tab="sql-editor">
+            <i class="ri-code-s-slash-line"></i> SQL Script Editor
+          </button>
+        </div>
+        <div class="search-box">
+          <i class="ri-search-line"></i>
+          <input type="text" id="searchChangesInput" placeholder="Filter changes or tags...">
+        </div>
+      </div>
+
+      <!-- TAB 1: PLAN TIMELINE -->
+      <div class="tab-content active" id="tab-timeline">
+        <div class="plan-timeline-container">
+          <table class="plan-table">
+            <thead>
+              <tr>
+                <th width="50">#</th>
+                <th>Type</th>
+                <th>Name</th>
+                <th>Requires</th>
+                <th>Planner / Date</th>
+                <th>Note</th>
+                <th width="140">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="planTableBody">
+              <!-- Dynamically Populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 2: SQL SCRIPT EDITOR -->
+      <div class="tab-content" id="tab-sql-editor">
+        <div class="editor-header">
+          <div class="editor-title">
+            <span class="selected-change-label">Selected Change:</span>
+            <strong id="editorChangeName">app_schema</strong>
+          </div>
+
+          <div class="script-tabs">
+            <button class="script-tab active" data-script="deploy"><i class="ri-upload-2-line"></i> deploy.sql</button>
+            <button class="script-tab" data-script="revert"><i class="ri-download-2-line"></i> revert.sql</button>
+            <button class="script-tab" data-script="verify"><i class="ri-shield-check-line"></i> verify.sql</button>
+          </div>
+
+          <button class="btn btn-primary" id="btnSaveSql">
+            <i class="ri-save-line"></i> Save File
+          </button>
+        </div>
+
+        <div class="editor-container">
+          <textarea id="sqlTextArea" placeholder="-- SQL script content will appear here..."></textarea>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- RIGHT / BOTTOM: STREAMING TERMINAL CONSOLE -->
+    <section class="terminal-drawer" id="terminalDrawer">
+      <div class="terminal-header">
+        <div class="terminal-title">
+          <i class="ri-terminal-box-line"></i>
+          <span>Execution Output Console</span>
+          <span class="status-indicator" id="consoleStatus">Ready</span>
+        </div>
+        <div class="terminal-controls">
+          <button class="btn btn-icon btn-secondary" id="btnClearTerminal" title="Clear Output">
+            <i class="ri-delete-bin-line"></i>
+          </button>
+          <button class="btn btn-icon btn-secondary" id="btnCopyTerminal" title="Copy Output">
+            <i class="ri-file-copy-line"></i>
+          </button>
+        </div>
+      </div>
+      <div class="terminal-body" id="terminalBody">
+        <div class="log-line system-welcome">
+          Welcome to <span class="highlight">Sqitch Studio</span>. Ready to execute database migrations.
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: ADD CHANGE (`sqitch add`) -->
+  <div class="modal-backdrop" id="modalAddChange">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="ri-add-circle-line"></i> Create New Change (`sqitch add`)</h3>
+        <button class="modal-close" id="btnCloseModalAdd">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Change Name <span class="required">*</span></label>
+          <input type="text" id="newChangeName" placeholder="e.g. add_users_table, add_index_on_email" required>
+        </div>
+        <div class="form-group">
+          <label>Requires (Dependencies)</label>
+          <input type="text" id="newChangeRequires" placeholder="e.g. app_schema, users_table (comma separated)">
+          <small>Changes that must be deployed before this change.</small>
+        </div>
+        <div class="form-group">
+          <label>Conflicts</label>
+          <input type="text" id="newChangeConflicts" placeholder="e.g. legacy_users_table">
+        </div>
+        <div class="form-group">
+          <label>Description / Note</label>
+          <input type="text" id="newChangeNote" placeholder="Brief explanation of this database migration">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btnCancelModalAdd">Cancel</button>
+        <button class="btn btn-primary" id="btnSubmitAddChange">
+          <i class="ri-check-line"></i> Create Migration Files
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD TARGET -->
+  <div class="modal-backdrop" id="modalAddTarget">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="ri-database-2-line"></i> Add Database Target</h3>
+        <button class="modal-close" id="btnCloseModalTarget">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Target Name <span class="required">*</span></label>
+          <input type="text" id="newTargetName" placeholder="e.g. dev, staging, production" required>
+        </div>
+        <div class="form-group">
+          <label>Target Connection URI <span class="required">*</span></label>
+          <input type="text" id="newTargetUri" placeholder="e.g. db:pg://user:pass@localhost:5432/dbname" required>
+          <small>Examples: <code>db:pg://user:pass@host:5432/db</code>, <code>db:sqlite:myapp.db</code>, <code>db:mysql://user:pass@host:3306/db</code></small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btnCancelModalTarget">Cancel</button>
+        <button class="btn btn-primary" id="btnSubmitAddTarget">
+          <i class="ri-save-line"></i> Save Target
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
