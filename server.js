@@ -14,18 +14,56 @@ const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 3000;
 let currentProjectDir = process.cwd();
 
+// Default root directory for storing projects (/opt/sqitchgui or C:\opt\sqitchgui)
+const BASE_PROJECT_ROOT = process.platform === 'win32' ? 'C:\\opt\\sqitchgui' : '/opt/sqitchgui';
+
 // Saved projects storage file
 const PROJECTS_STORE = path.join(__dirname, 'saved_projects.json');
 
+function getProjectRootDir() {
+  if (fs.existsSync('/opt/sqitchgui')) return '/opt/sqitchgui';
+  if (fs.existsSync('C:\\opt\\sqitchgui')) return 'C:\\opt\\sqitchgui';
+  return BASE_PROJECT_ROOT;
+}
+
+function scanProjectsInRootDir(rootDir) {
+  const discovered = [];
+  try {
+    if (fs.existsSync(rootDir)) {
+      const items = fs.readdirSync(rootDir, { withFileTypes: true });
+      for (const item of items) {
+        if (item.isDirectory()) {
+          const fullPath = path.join(rootDir, item.name);
+          if (fs.existsSync(path.join(fullPath, 'sqitch.plan'))) {
+            discovered.push(fullPath);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Scan root dir error:', e);
+  }
+  return discovered;
+}
+
 function getSavedProjects() {
+  let list = [];
   if (fs.existsSync(PROJECTS_STORE)) {
     try {
-      return JSON.parse(fs.readFileSync(PROJECTS_STORE, 'utf8'));
+      list = JSON.parse(fs.readFileSync(PROJECTS_STORE, 'utf8'));
     } catch (e) {
-      return [currentProjectDir];
+      list = [currentProjectDir];
     }
+  } else {
+    list = [currentProjectDir];
   }
-  return [currentProjectDir];
+
+  // Combine with auto-scanned projects in /opt/sqitchgui
+  const rootDir = getProjectRootDir();
+  const scanned = scanProjectsInRootDir(rootDir);
+  const combined = Array.from(new Set([...list, ...scanned, currentProjectDir]));
+
+  return combined;
 }
 
 function saveSavedProjects(list) {
@@ -40,7 +78,7 @@ function saveSavedProjects(list) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Ensure demo project exists if project is empty
+// Ensure demo project exists if current project is empty
 const runnerHelper = new SqitchRunner();
 if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
   runnerHelper.initDemoProjectFiles(currentProjectDir, 'sqitch_demo_db', 'pg');
@@ -57,11 +95,12 @@ app.get('/api/env', (req, res) => {
   res.json({
     success: true,
     env: envInfo,
-    currentProjectDir
+    currentProjectDir,
+    baseProjectRoot: getProjectRootDir()
   });
 });
 
-// Get project details and plan
+// Get project details, saved projects, and metadata
 app.get('/api/project', (req, res) => {
   try {
     const projectData = SqitchPlanParser.parseProject(currentProjectDir);
@@ -69,17 +108,87 @@ app.get('/api/project', (req, res) => {
     res.json({
       success: true,
       project: projectData,
-      savedProjects
+      savedProjects,
+      baseProjectRoot: getProjectRootDir()
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Get saved projects list
+// Get saved and scanned projects list with names
 app.get('/api/projects', (req, res) => {
   const list = getSavedProjects();
-  res.json({ success: true, projects: list, currentProjectDir });
+  const projectSummaries = list.map(pPath => {
+    try {
+      const pData = SqitchPlanParser.parseProject(pPath);
+      return {
+        path: pPath,
+        name: pData.meta.project || path.basename(pPath),
+        engine: pData.config?.core?.engine || 'pg',
+        uri: pData.meta.uri || ''
+      };
+    } catch (e) {
+      return {
+        path: pPath,
+        name: path.basename(pPath),
+        engine: 'pg',
+        uri: ''
+      };
+    }
+  });
+
+  res.json({
+    success: true,
+    projects: projectSummaries,
+    currentProjectDir,
+    baseProjectRoot: getProjectRootDir()
+  });
+});
+
+// Create New Project in /opt/sqitchgui/<projectName>
+app.post('/api/projects/create', (req, res) => {
+  const { name, engine = 'pg' } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, error: 'Project name is required' });
+  }
+
+  const cleanName = name.trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
+  const rootDir = getProjectRootDir();
+  
+  // Ensure root directory exists
+  if (!fs.existsSync(rootDir)) {
+    try {
+      fs.mkdirSync(rootDir, { recursive: true });
+    } catch (e) {
+      console.warn(`Could not create root dir ${rootDir}:`, e.message);
+    }
+  }
+
+  const targetProjDir = path.join(rootDir, cleanName);
+  if (!fs.existsSync(targetProjDir)) {
+    fs.mkdirSync(targetProjDir, { recursive: true });
+  }
+
+  // Initialize demo project files in /opt/sqitchgui/<cleanName>
+  runnerHelper.initDemoProjectFiles(targetProjDir, cleanName, engine);
+
+  currentProjectDir = targetProjDir;
+
+  const list = getSavedProjects();
+  if (!list.includes(targetProjDir)) {
+    list.unshift(targetProjDir);
+    saveSavedProjects(list);
+  }
+
+  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  res.json({
+    success: true,
+    project: projectData,
+    savedProjects: list,
+    currentProjectDir,
+    message: `Created project '${cleanName}' at ${targetProjDir}`
+  });
 });
 
 // Switch working project directory

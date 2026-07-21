@@ -249,27 +249,63 @@
       </div>
       <div class="modal-body">
         
-        <!-- SECTION 1: SWITCH OR OPEN PROJECT PATH -->
+        <!-- SECTION 1: CREATE NEW PROJECT IN /opt/sqitchgui/<projectName> -->
         <div class="form-group">
-          <label><i class="ri-folder-open-line"></i> 1. Membuka / Mengganti Project (Open Project Directory)</label>
+          <label><i class="ri-add-box-line"></i> 1. Buat Project Baru di Subfolder `/opt/sqitchgui`</label>
           <div style="display: flex; gap: 8px;">
-            <input type="text" id="switchProjectPathInput" placeholder="e.g. C:\DATA\GITHUB\SQITCHGUI or /opt/sqitchgui" style="flex: 1;">
-            <button class="btn btn-primary" id="btnSubmitSwitchProject">
-              <i class="ri-folder-open-line"></i> Buka Project
+            <input type="text" id="createProjNameInput" placeholder="Nama project (misal: mufins_upload_210726)" style="flex: 1;">
+            <select id="createProjEngineSelect" style="width: 140px;">
+              <option value="pg">PostgreSQL</option>
+              <option value="mysql">MySQL</option>
+              <option value="sqlite">SQLite</option>
+              <option value="oracle">Oracle</option>
+            </select>
+            <button class="btn btn-success" id="btnSubmitCreateProj">
+              <i class="ri-folder-add-line"></i> Buat Project
             </button>
           </div>
-          <small>Masukkan path folder absolut yang berisi <code>sqitch.plan</code>.</small>
+          <small>File project akan tersimpan di <code id="createProjPathPreview">/opt/sqitchgui/mufins_upload_210726</code></small>
         </div>
 
         <hr style="border: none; border-top: 1px solid var(--border-color); margin: 6px 0;">
 
-        <!-- SECTION 2: EDIT & SAVE PROJECT METADATA -->
+        <!-- SECTION 2: OPEN / SWITCH CUSTOM PATH -->
         <div class="form-group">
-          <label><i class="ri-save-line"></i> 2. Menyimpan Metadata Project (`sqitch.plan` header)</label>
+          <label><i class="ri-folder-open-line"></i> 2. Membuka Path Directory Lain</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="switchProjectPathInput" placeholder="e.g. /opt/sqitchgui/mufins_upload_210726" style="flex: 1;">
+            <button class="btn btn-primary" id="btnSubmitSwitchProject">
+              <i class="ri-folder-open-line"></i> Buka Path
+            </button>
+          </div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--border-color); margin: 6px 0;">
+
+        <!-- SECTION 3: SEARCH & LIST PROJECTS -->
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label><i class="ri-search-2-line"></i> 3. Cari & Pilih Project (Daftar Project)</label>
+            <span style="font-size: 11px; color: var(--text-dim);" id="scannedRootText">Root: /opt/sqitchgui</span>
+          </div>
+          <div class="search-box" style="width: 100%; margin-bottom: 8px;">
+            <i class="ri-search-line"></i>
+            <input type="text" id="searchProjectsInput" placeholder="Cari nama project (misal: mufins_upload_210726)...">
+          </div>
+          <div class="saved-projects-list" id="savedProjectsList">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--border-color); margin: 6px 0;">
+
+        <!-- SECTION 4: EDIT & SAVE PROJECT METADATA -->
+        <div class="form-group">
+          <label><i class="ri-save-line"></i> 4. Menyimpan Metadata Project (`sqitch.plan` & `sqitch.conf` lokal)</label>
           <div class="connection-builder-grid" style="margin-top: 4px;">
             <div class="form-group">
               <label>Nama Project</label>
-              <input type="text" id="saveProjNameInput" placeholder="e.g. sqitch_demo_db, smmf_mufins">
+              <input type="text" id="saveProjNameInput" placeholder="e.g. mufins_upload_210726">
             </div>
             <div class="form-group">
               <label>Project URI / Repo URL</label>
@@ -279,16 +315,6 @@
           <button class="btn btn-secondary btn-sm" id="btnSubmitSaveProjMeta" style="align-self: flex-start; margin-top: 8px;">
             <i class="ri-save-line"></i> Simpan Metadata Project
           </button>
-        </div>
-
-        <hr style="border: none; border-top: 1px solid var(--border-color); margin: 6px 0;">
-
-        <!-- SECTION 3: SAVED PROJECTS LIST (OPEN / DELETE) -->
-        <div class="form-group">
-          <label><i class="ri-delete-bin-line"></i> 3. Menghapus / Mengganti Workspace Tersimpan</label>
-          <div class="saved-projects-list" id="savedProjectsList">
-            <!-- Dynamically populated -->
-          </div>
         </div>
 
       </div>

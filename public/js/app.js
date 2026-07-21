@@ -45,12 +45,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSidebarManageProjects = document.getElementById('btnSidebarManageProjects');
 
   // Project Manager Elements
+  const createProjNameInput = document.getElementById('createProjNameInput');
+  const createProjEngineSelect = document.getElementById('createProjEngineSelect');
+  const createProjPathPreview = document.getElementById('createProjPathPreview');
+  const btnSubmitCreateProj = document.getElementById('btnSubmitCreateProj');
+
   const switchProjectPathInput = document.getElementById('switchProjectPathInput');
   const btnSubmitSwitchProject = document.getElementById('btnSubmitSwitchProject');
   const saveProjNameInput = document.getElementById('saveProjNameInput');
   const saveProjUriInput = document.getElementById('saveProjUriInput');
   const btnSubmitSaveProjMeta = document.getElementById('btnSubmitSaveProjMeta');
+
+  const searchProjectsInput = document.getElementById('searchProjectsInput');
   const savedProjectsList = document.getElementById('savedProjectsList');
+  const scannedRootText = document.getElementById('scannedRootText');
 
   // Target Builder Elements
   const targetEngineSelect = document.getElementById('targetEngineSelect');
@@ -69,7 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentSelectedChange = null;
   let currentActiveScript = 'deploy';
   let isUriManuallyEdited = false;
-  let savedProjects = [];
+  let allProjectsList = [];
+  let baseProjectRoot = '/opt/sqitchgui';
   let ws = null;
 
   // Initialize
@@ -137,9 +146,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/env');
       const data = await res.json();
       if (data.success) {
-        const { env, currentProjectDir } = data;
+        const { env, currentProjectDir, baseProjectRoot: bRoot } = data;
         elCurrentPathText.textContent = currentProjectDir;
         switchProjectPathInput.value = currentProjectDir;
+        if (bRoot) {
+          baseProjectRoot = bRoot;
+          scannedRootText.textContent = `Root: ${bRoot}`;
+        }
         elModeSelect.value = env.recommendedMode;
       }
     } catch (e) {
@@ -152,17 +165,72 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/project');
       const data = await res.json();
       if (data.success) {
-        if (data.savedProjects) savedProjects = data.savedProjects;
+        if (data.baseProjectRoot) {
+          baseProjectRoot = data.baseProjectRoot;
+          scannedRootText.textContent = `Root: ${data.baseProjectRoot}`;
+        }
         renderProject(data.project);
+        await fetchAllProjectsList();
       }
     } catch (e) {
       console.error(e);
     }
   }
 
+  async function fetchAllProjectsList() {
+    try {
+      const res = await fetch('/api/projects');
+      const data = await res.json();
+      if (data.success) {
+        allProjectsList = data.projects || [];
+        renderSavedProjectsList();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  // Live preview for Create Project Path
+  createProjNameInput.addEventListener('input', () => {
+    const val = createProjNameInput.value.trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
+    createProjPathPreview.textContent = val ? `${baseProjectRoot}/${val}` : `${baseProjectRoot}/<nama_project>`;
+  });
+
+  // Submit Create New Project
+  btnSubmitCreateProj.addEventListener('click', async () => {
+    const projName = createProjNameInput.value.trim();
+    const engine = createProjEngineSelect.value;
+    if (!projName) {
+      return alert('Masukkan nama project baru!');
+    }
+
+    try {
+      const res = await fetch('/api/projects/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: projName, engine })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        createProjNameInput.value = '';
+        elCurrentPathText.textContent = data.currentProjectDir;
+        switchProjectPathInput.value = data.currentProjectDir;
+        renderProject(data.project);
+        await fetchAllProjectsList();
+        appendTerminalLog({ type: 'success', text: `🟢 Successfully created & opened project '${projName}' at ${data.currentProjectDir}` });
+        modalProjectManager.classList.remove('show');
+      } else {
+        alert(data.error || 'Failed to create project');
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+
   // Open Project Manager Modal
   function openProjectManager() {
-    renderSavedProjectsList();
+    fetchAllProjectsList();
     modalProjectManager.classList.add('show');
   }
 
@@ -191,9 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.success) {
         elCurrentPathText.textContent = data.currentProjectDir;
         switchProjectPathInput.value = data.currentProjectDir;
-        if (data.savedProjects) savedProjects = data.savedProjects;
         renderProject(data.project);
-        renderSavedProjectsList();
+        await fetchAllProjectsList();
         appendTerminalLog({ type: 'success', text: `Switched project directory to: ${data.currentProjectDir}` });
         modalProjectManager.classList.remove('show');
       } else {
@@ -218,7 +285,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (data.success) {
         renderProject(data.project);
-        appendTerminalLog({ type: 'success', text: `Saved project settings: Name='${name}', URI='${uri}'` });
+        await fetchAllProjectsList();
+        appendTerminalLog({ type: 'success', text: `Saved project settings locally: Name='${name}', URI='${uri}'` });
       }
     } catch (e) {
       alert(e.message);
@@ -237,9 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await res.json();
       if (data.success) {
-        if (data.savedProjects) savedProjects = data.savedProjects;
         renderProject(data.project);
-        renderSavedProjectsList();
+        await fetchAllProjectsList();
         elCurrentPathText.textContent = data.currentProjectDir;
         switchProjectPathInput.value = data.currentProjectDir;
         appendTerminalLog({ type: 'info', text: `Removed project path '${pathToDelete}' from list.` });
@@ -253,25 +320,48 @@ document.addEventListener('DOMContentLoaded', () => {
     switchProjectDirectory(pathStr);
   };
 
+  // Search input filter listener
+  searchProjectsInput.addEventListener('input', () => {
+    renderSavedProjectsList();
+  });
+
   function renderSavedProjectsList() {
-    if (!savedProjects || savedProjects.length === 0) {
-      savedProjectsList.innerHTML = '<span class="no-tags">No saved project workspaces yet.</span>';
+    if (!allProjectsList || allProjectsList.length === 0) {
+      savedProjectsList.innerHTML = '<span class="no-tags">Belum ada project tersimpan. Buat project baru di atas.</span>';
       return;
     }
 
     const currentNorm = (elCurrentPathText.textContent || '').toLowerCase();
+    const searchTerm = searchProjectsInput.value.trim().toLowerCase();
 
-    savedProjectsList.innerHTML = savedProjects.map(p => {
-      const isActive = p.toLowerCase() === currentNorm;
+    const filtered = allProjectsList.filter(item => {
+      const pName = (item.name || '').toLowerCase();
+      const pPath = (item.path || '').toLowerCase();
+      const pUri = (item.uri || '').toLowerCase();
+      return pName.includes(searchTerm) || pPath.includes(searchTerm) || pUri.includes(searchTerm);
+    });
+
+    if (filtered.length === 0) {
+      savedProjectsList.innerHTML = `<span class="no-tags">Tidak ditemukan project dengan nama "${searchProjectsInput.value}".</span>`;
+      return;
+    }
+
+    savedProjectsList.innerHTML = filtered.map(item => {
+      const pPath = item.path;
+      const isActive = pPath.toLowerCase() === currentNorm;
       const cardClass = isActive ? 'project-item-card is-active' : 'project-item-card';
-      const escapedPath = p.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const escapedPath = pPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
       return `
         <div class="${cardClass}">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="ri-folder-3-fill" style="color: var(--primary);"></i>
-            <span class="proj-path-text">${p}</span>
-            ${isActive ? '<span class="badge badge-native" style="font-size:10px; padding: 1px 6px;">Active</span>' : ''}
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <i class="ri-folder-3-fill" style="color: var(--primary);"></i>
+              <strong style="color: var(--text-main); font-size: 13px;">${item.name || 'Untitled Project'}</strong>
+              <span class="badge badge-engine" style="font-size:10px; padding: 1px 6px;">${(item.engine || 'PG').toUpperCase()}</span>
+              ${isActive ? '<span class="badge badge-native" style="font-size:10px; padding: 1px 6px;">Active</span>' : ''}
+            </div>
+            <span class="proj-path-text" style="margin-left: 24px;">${pPath}</span>
           </div>
           <div class="proj-actions">
             ${!isActive ? `<button class="btn btn-primary btn-xs" onclick="window.openSavedProject('${escapedPath}')"><i class="ri-folder-open-line"></i> Buka</button>` : ''}
