@@ -126,34 +126,55 @@ app.post('/api/projects/delete', (req, res) => {
   res.json({ success: true, project: projectData, savedProjects: list, currentProjectDir });
 });
 
-// Save Project Meta (Name, URI) in sqitch.plan
+// Save Project Meta (Name, URI) in sqitch.plan AND sqitch.conf locally inside project directory (/repo in Docker)
 app.post('/api/projects/save-meta', (req, res) => {
   const { name, uri } = req.body;
   const planPath = path.join(currentProjectDir, 'sqitch.plan');
+  const confPath = path.join(currentProjectDir, 'sqitch.conf');
 
-  if (!fs.existsSync(planPath)) {
-    return res.status(400).json({ success: false, error: 'sqitch.plan file not found' });
-  }
+  // 1. Save to sqitch.plan (%project=, %uri=)
+  if (fs.existsSync(planPath)) {
+    let planContent = fs.readFileSync(planPath, 'utf8');
 
-  let content = fs.readFileSync(planPath, 'utf8');
-
-  if (name) {
-    if (content.includes('%project=')) {
-      content = content.replace(/%project=.*(\r?\n)/, `%project=${name}$1`);
-    } else {
-      content = `%project=${name}\n` + content;
+    if (name) {
+      if (planContent.includes('%project=')) {
+        planContent = planContent.replace(/%project=.*(\r?\n)/, `%project=${name}$1`);
+      } else {
+        planContent = `%project=${name}\n` + planContent;
+      }
     }
+
+    if (uri) {
+      if (planContent.includes('%uri=')) {
+        planContent = planContent.replace(/%uri=.*(\r?\n)/, `%uri=${uri}$1`);
+      } else {
+        planContent = `%uri=${uri}\n` + planContent;
+      }
+    }
+
+    fs.writeFileSync(planPath, planContent, 'utf8');
   }
+
+  // 2. Save to sqitch.conf ([core] uri =, [core] project =) locally
+  let confContent = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf8') : '[core]\n  engine = pg\n';
 
   if (uri) {
-    if (content.includes('%uri=')) {
-      content = content.replace(/%uri=.*(\r?\n)/, `%uri=${uri}$1`);
+    if (confContent.includes('uri =')) {
+      confContent = confContent.replace(/uri\s*=\s*.*(\r?\n)/, `uri = ${uri}$1`);
     } else {
-      content = `%uri=${uri}\n` + content;
+      confContent = confContent.replace('[core]', `[core]\n  uri = ${uri}`);
     }
   }
 
-  fs.writeFileSync(planPath, content, 'utf8');
+  if (name) {
+    if (confContent.includes('project =')) {
+      confContent = confContent.replace(/project\s*=\s*.*(\r?\n)/, `project = ${name}$1`);
+    } else {
+      confContent = confContent.replace('[core]', `[core]\n  project = ${name}`);
+    }
+  }
+
+  fs.writeFileSync(confPath, confContent, 'utf8');
 
   const projectData = SqitchPlanParser.parseProject(currentProjectDir);
   res.json({ success: true, project: projectData });
