@@ -138,10 +138,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   }
 
-  // Single change execution handler (Runs ONLY the specific change)
+  // Deploy change up to specified target (--to-change changeName)
   window.deploySingleChange = function(changeName) {
-    appendTerminalLog({ type: 'info', text: `▶️ Executing ONLY change '${changeName}' (single change mode)...` });
-    sendCommand('deploy', ['--from-change', changeName, '--to-change', changeName]);
+    appendTerminalLog({ type: 'info', text: `▶️ Deploying change up to '${changeName}' (--to-change ${changeName})...` });
+    sendCommand('deploy', ['--to-change', changeName]);
   };
 
   // -------------------------------------------------------------
@@ -608,7 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <button class="btn btn-secondary btn-xs" onclick="window.selectChange('${item.name}')" title="Edit SQL">
                 <i class="ri-edit-line"></i> SQL
               </button>
-              <button class="btn btn-success btn-xs" onclick="window.deploySingleChange('${item.name}')" title="Jalankan HANYA change ini saja (sqitch deploy --from-change ${item.name} --to-change ${item.name})">
+              <button class="btn btn-success btn-xs" onclick="window.deploySingleChange('${item.name}')" title="Jalankan change ini (sqitch deploy --to-change ${item.name})">
                 <i class="ri-play-line"></i>
               </button>
             </div>
