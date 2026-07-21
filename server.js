@@ -68,6 +68,16 @@ function saveDeletedBlacklist(list) {
   }
 }
 
+function unblacklistProject(pPath) {
+  if (!pPath) return;
+  const resolved = path.resolve(pPath);
+  let blacklist = getDeletedBlacklist();
+  if (blacklist.includes(resolved)) {
+    blacklist = blacklist.filter(p => path.resolve(p) !== resolved);
+    saveDeletedBlacklist(blacklist);
+  }
+}
+
 // Sync shared target definitions into a project's sqitch.conf
 function syncSharedTargetsToConfig(projectDir) {
   const confPath = path.join(projectDir, 'sqitch.conf');
@@ -144,6 +154,8 @@ function scanProjectsInRootDir(rootDir) {
 }
 
 function getSavedProjects() {
+  unblacklistProject(currentProjectDir);
+
   let list = [];
   if (fs.existsSync(PROJECTS_STORE)) {
     try {
@@ -159,8 +171,10 @@ function getSavedProjects() {
   const scanned = scanProjectsInRootDir(rootDir);
   const blacklist = getDeletedBlacklist().map(p => path.resolve(p));
 
-  const combined = Array.from(new Set([...list, ...scanned, currentProjectDir]))
-    .filter(pPath => !blacklist.includes(path.resolve(pPath)));
+  const validScanned = scanned.filter(pPath => !blacklist.includes(path.resolve(pPath)));
+
+  const combined = Array.from(new Set([...list, ...validScanned, currentProjectDir]))
+    .filter(pPath => pPath && typeof pPath === 'string' && fs.existsSync(pPath));
 
   return combined;
 }
@@ -340,32 +354,37 @@ app.post('/api/plan/delete-change', (req, res) => {
 
 // Get saved and scanned projects list with names
 app.get('/api/projects', (req, res) => {
-  const list = getSavedProjects();
-  const projectSummaries = list.map(pPath => {
-    try {
-      const pData = getMergedProjectData(pPath);
-      return {
-        path: pPath,
-        name: pData.meta.project || path.basename(pPath),
-        engine: pData.config?.core?.engine || 'pg',
-        uri: pData.meta.uri || ''
-      };
-    } catch (e) {
-      return {
-        path: pPath,
-        name: path.basename(pPath),
-        engine: 'pg',
-        uri: ''
-      };
-    }
-  });
+  try {
+    const list = getSavedProjects();
+    const projectSummaries = list.map(pPath => {
+      try {
+        const pData = getMergedProjectData(pPath);
+        return {
+          path: pPath,
+          name: pData.meta.project || path.basename(pPath),
+          engine: pData.config?.core?.engine || 'pg',
+          uri: pData.meta.uri || ''
+        };
+      } catch (e) {
+        return {
+          path: pPath,
+          name: path.basename(pPath),
+          engine: 'pg',
+          uri: ''
+        };
+      }
+    });
 
-  res.json({
-    success: true,
-    projects: projectSummaries,
-    currentProjectDir,
-    baseProjectRoot: getProjectRootDir()
-  });
+    res.json({
+      success: true,
+      projects: projectSummaries,
+      currentProjectDir,
+      baseProjectRoot: getProjectRootDir()
+    });
+  } catch (err) {
+    console.error('Error in GET /api/projects:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Create New Project in /opt/sqitchgui/<projectName>
@@ -391,6 +410,7 @@ app.post('/api/projects/create', (req, res) => {
     fs.mkdirSync(targetProjDir, { recursive: true });
   }
 
+  unblacklistProject(targetProjDir);
   runnerHelper.initEmptyProjectFiles(targetProjDir, cleanName, engine);
   currentProjectDir = targetProjDir;
 
@@ -418,6 +438,7 @@ app.post('/api/projects/switch', (req, res) => {
   }
 
   currentProjectDir = path.resolve(newPath);
+  unblacklistProject(currentProjectDir);
 
   if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
     const defaultName = path.basename(currentProjectDir) || 'app_db';
@@ -465,6 +486,7 @@ app.post('/api/projects/delete', (req, res) => {
   // If currently active project was deleted, switch to remaining project or default
   if (path.resolve(currentProjectDir) === resolvedTarget) {
     currentProjectDir = list.length > 0 ? list[0] : process.cwd();
+    unblacklistProject(currentProjectDir);
   }
 
   const projectData = getMergedProjectData(currentProjectDir);
