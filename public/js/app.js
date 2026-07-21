@@ -463,7 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // -------------------------------------------------------------
   // RENDERING LOGIC
   // -------------------------------------------------------------
-  function renderProject(project) {
+  function renderProject(project, selectTargetName = null) {
     currentProject = project;
 
     const meta = project.meta || {};
@@ -482,6 +482,9 @@ document.addEventListener('DOMContentLoaded', () => {
     elInfoTotalChanges.textContent = changes.length;
     elInfoTotalTags.textContent = tags.length;
 
+    // Remember currently selected target
+    const prevSelectedTarget = selectTargetName || elTargetSelect.value;
+
     // Render Targets Dropdown
     elTargetSelect.innerHTML = '<option value="">Default Target</option>';
     if (config.target && typeof config.target === 'object') {
@@ -490,9 +493,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetUri = typeof targetObj === 'object' ? (targetObj.uri || '') : targetObj;
         const opt = document.createElement('option');
         opt.value = tName;
-        opt.textContent = `${tName} (${targetUri})`;
+        opt.textContent = targetUri ? `${tName} (${targetUri})` : tName;
         elTargetSelect.appendChild(opt);
       });
+    }
+
+    // Restore selected target if available in dropdown
+    if (prevSelectedTarget && Array.from(elTargetSelect.options).some(o => o.value === prevSelectedTarget)) {
+      elTargetSelect.value = prevSelectedTarget;
+    } else if (elTargetSelect.options.length > 1) {
+      // Auto select first target if available
+      elTargetSelect.selectedIndex = 1;
     }
 
     // Render Tags List
@@ -851,7 +862,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (data.success) {
         modalAddTarget.classList.remove('show');
-        renderProject(data.project);
+        renderProject(data.project, data.addedTarget || name);
         appendTerminalLog({ type: 'success', text: `Added/Updated DB Target '${name}' (${engine.toUpperCase()}): ${uri}` });
       }
     } catch (e) {

@@ -381,7 +381,7 @@ app.post('/api/target/add', (req, res) => {
   const confPath = path.join(currentProjectDir, 'sqitch.conf');
   let content = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf8') : '[core]\n  engine = pg\n';
 
-  // If target section already exists, strip old section to overwrite cleanly
+  // Parse sections and remove old target section with same name if it exists
   const lines = content.split(/\r?\n/);
   const newLines = [];
   let inTargetSection = false;
@@ -391,12 +391,15 @@ app.post('/api/target/add', (req, res) => {
     const trimmed = line.trim();
 
     if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      if (trimmed === `[target "${name}"]` || trimmed === `[target '${name}']` || trimmed === `[target ${name}]`) {
-        inTargetSection = true;
-        continue;
-      } else {
-        inTargetSection = false;
+      const tMatch = trimmed.match(/^\[\s*target\s+(?:"([^"]*)"|'([^']*)'|([^\s\]]+))\s*\]$/i);
+      if (tMatch) {
+        const foundName = tMatch[1] || tMatch[2] || tMatch[3];
+        if (foundName === name) {
+          inTargetSection = true;
+          continue;
+        }
       }
+      inTargetSection = false;
     }
 
     if (!inTargetSection) {
@@ -405,18 +408,32 @@ app.post('/api/target/add', (req, res) => {
   }
 
   let cleanContent = newLines.join('\n').trim();
+
+  // Add target section
   cleanContent += `\n\n[target "${name}"]\n  uri = ${uri}\n`;
 
-  if (engine) {
-    if (!cleanContent.includes(`[engine "${engine}"]`)) {
-      cleanContent += `\n[engine "${engine}"]\n  target = ${name}\n`;
+  // Update or set engine target
+  const activeEng = engine || 'pg';
+  if (cleanContent.includes(`[engine "${activeEng}"]`)) {
+    if (cleanContent.match(new RegExp(`\\[engine "${activeEng}"\\][^\\[]*target\\s*=`, 'i'))) {
+      cleanContent = cleanContent.replace(
+        new RegExp(`(\\[engine "${activeEng}"\\][^\\[]*?)target\\s*=\\s*.*`, 'i'),
+        `$1target = ${name}`
+      );
+    } else {
+      cleanContent = cleanContent.replace(
+        `[engine "${activeEng}"]`,
+        `[engine "${activeEng}"]\n  target = ${name}`
+      );
     }
+  } else {
+    cleanContent += `\n[engine "${activeEng}"]\n  target = ${name}\n`;
   }
 
   fs.writeFileSync(confPath, cleanContent, 'utf8');
 
   const projectData = SqitchPlanParser.parseProject(currentProjectDir);
-  res.json({ success: true, project: projectData });
+  res.json({ success: true, project: projectData, addedTarget: name });
 });
 
 // Delete database target from sqitch.conf
@@ -439,12 +456,15 @@ app.post('/api/target/delete', (req, res) => {
     const trimmed = line.trim();
 
     if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      if (trimmed === `[target "${name}"]` || trimmed === `[target '${name}']` || trimmed === `[target ${name}]`) {
-        inTargetSection = true;
-        continue;
-      } else {
-        inTargetSection = false;
+      const tMatch = trimmed.match(/^\[\s*target\s+(?:"([^"]*)"|'([^']*)'|([^\s\]]+))\s*\]$/i);
+      if (tMatch) {
+        const foundName = tMatch[1] || tMatch[2] || tMatch[3];
+        if (foundName === name) {
+          inTargetSection = true;
+          continue;
+        }
       }
+      inTargetSection = false;
     }
 
     if (!inTargetSection) {
