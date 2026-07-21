@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const elInfoProjectName = document.getElementById('infoProjectName');
   const elInfoEngine = document.getElementById('infoEngine');
+  const elInfoDbStatus = document.getElementById('infoDbStatus');
   const elInfoTotalChanges = document.getElementById('infoTotalChanges');
   const elInfoTotalTags = document.getElementById('infoTotalTags');
   const elTagsList = document.getElementById('tagsList');
@@ -33,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnStatus = document.getElementById('btnStatus');
   const btnAddChange = document.getElementById('btnAddChange');
   const btnAddTarget = document.getElementById('btnAddTarget');
+  const btnTestTarget = document.getElementById('btnTestTarget');
 
   // Modals
   const modalAddChange = document.getElementById('modalAddChange');
@@ -46,6 +48,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const targetPass = document.getElementById('targetPass');
   const targetDbName = document.getElementById('targetDbName');
   const newTargetUri = document.getElementById('newTargetUri');
+  const modalTestResult = document.getElementById('modalTestResult');
+  const btnTestModalTarget = document.getElementById('btnTestModalTarget');
 
   // State
   let currentProject = null;
@@ -167,6 +171,45 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (e) {
       alert(e.message);
+    }
+  });
+
+  // Test Connection Button Handler
+  btnTestTarget.addEventListener('click', async () => {
+    const selectedTarget = elTargetSelect.value;
+    elInfoDbStatus.className = 'badge badge-db-status badge-testing';
+    elInfoDbStatus.innerHTML = `<i class="ri-loader-4-line ri-spin"></i> Testing...`;
+
+    appendTerminalLog({ type: 'info', text: `Testing connection to DB Target '${selectedTarget || 'default'}'...` });
+
+    try {
+      const res = await fetch('/api/target/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target: selectedTarget,
+          mode: elModeSelect.value
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        elInfoDbStatus.className = 'badge badge-db-status badge-connected';
+        elInfoDbStatus.innerHTML = `<i class="ri-checkbox-circle-line"></i> Connected`;
+        appendTerminalLog({ type: 'success', text: `🟢 Connection SUCCESSFUL to DB Target '${selectedTarget || 'default'}'` });
+      } else {
+        elInfoDbStatus.className = 'badge badge-db-status badge-disconnected';
+        elInfoDbStatus.innerHTML = `<i class="ri-close-circle-line"></i> Failed`;
+        appendTerminalLog({ type: 'error', text: `🔴 Connection FAILED to DB Target '${selectedTarget || 'default'}'` });
+      }
+
+      if (data.output) {
+        appendTerminalLog({ type: 'stdout', text: data.output });
+      }
+    } catch (e) {
+      elInfoDbStatus.className = 'badge badge-db-status badge-disconnected';
+      elInfoDbStatus.innerHTML = `<i class="ri-close-circle-line"></i> Error`;
+      appendTerminalLog({ type: 'error', text: `Connection test error: ${e.message}` });
     }
   });
 
@@ -430,6 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // -------------------------------------------------------------
   btnAddTarget.addEventListener('click', () => {
     targetEngineSelect.value = elDbEngineSelect.value;
+    modalTestResult.style.display = 'none';
     updateGeneratedUri();
     modalAddTarget.classList.add('show');
   });
@@ -462,6 +506,39 @@ document.addEventListener('DOMContentLoaded', () => {
   [targetEngineSelect, targetHost, targetPort, targetUser, targetPass, targetDbName].forEach(input => {
     input.addEventListener('input', updateGeneratedUri);
     input.addEventListener('change', updateGeneratedUri);
+  });
+
+  // Test Connection inside Modal
+  btnTestModalTarget.addEventListener('click', async () => {
+    const targetUri = newTargetUri.value.trim();
+    if (!targetUri) return alert('Target URI is required to test!');
+
+    modalTestResult.style.display = 'block';
+    modalTestResult.className = 'test-result-box info';
+    modalTestResult.textContent = 'Testing connection to target database...';
+
+    try {
+      const res = await fetch('/api/target/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target: targetUri,
+          mode: elModeSelect.value
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        modalTestResult.className = 'test-result-box success';
+        modalTestResult.textContent = `🟢 Connection SUCCESSFUL to database!\n${data.output || ''}`;
+      } else {
+        modalTestResult.className = 'test-result-box error';
+        modalTestResult.textContent = `🔴 Connection FAILED to database.\n${data.output || ''}`;
+      }
+    } catch (e) {
+      modalTestResult.className = 'test-result-box error';
+      modalTestResult.textContent = `Error testing connection: ${e.message}`;
+    }
   });
 
   document.getElementById('btnSubmitAddTarget').addEventListener('click', async () => {

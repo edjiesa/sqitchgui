@@ -165,6 +165,30 @@ app.post('/api/target/add', (req, res) => {
   res.json({ success: true, project: projectData });
 });
 
+// Test Database Connection Endpoint
+app.post('/api/target/test', (req, res) => {
+  const { target, mode = 'auto' } = req.body;
+  const runner = new SqitchRunner({ mode, target });
+
+  let outputText = '';
+  let isSuccess = false;
+
+  runner.on('log', (logEntry) => {
+    outputText += `${logEntry.text}\n`;
+  });
+
+  runner.on('done', (result) => {
+    isSuccess = result.success;
+    res.json({
+      success: isSuccess,
+      target: target || 'default',
+      output: outputText
+    });
+  });
+
+  runner.run('status', [], currentProjectDir);
+});
+
 // -------------------------------------------------------------
 // WEBSOCKET LOG STREAMING
 // -------------------------------------------------------------

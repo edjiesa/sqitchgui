@@ -36,7 +36,7 @@
     <div class="header-actions">
       <!-- Database Engine Switcher -->
       <div class="db-engine-selector">
-        <label><i class="ri-database-line"></i> Active DB Engine:</label>
+        <label><i class="ri-database-line"></i> Engine:</label>
         <select id="dbEngineSelect" title="Select Database Engine">
           <option value="pg">PostgreSQL (pg)</option>
           <option value="mysql">MySQL / MariaDB</option>
@@ -52,7 +52,7 @@
 
       <!-- Execution Mode Selector -->
       <div class="mode-selector">
-        <label><i class="ri-cpu-line"></i> Execution Mode:</label>
+        <label><i class="ri-cpu-line"></i> Mode:</label>
         <select id="modeSelect">
           <option value="auto">Auto (Detect)</option>
           <option value="native">Native CLI</option>
@@ -61,14 +61,17 @@
         </select>
       </div>
 
-      <!-- Target DB Selector -->
+      <!-- Target DB Selector & Test Connection -->
       <div class="target-selector">
         <label><i class="ri-server-line"></i> Target DB:</label>
         <select id="targetSelect">
           <option value="">Default Target</option>
         </select>
+        <button class="btn btn-secondary btn-sm" id="btnTestTarget" title="Test Connection to selected DB Target">
+          <i class="ri-wifi-line"></i> Test DB
+        </button>
         <button class="btn btn-icon btn-secondary" id="btnAddTarget" title="Add Database Target / Connection">
-          <i class="ri-add-line"></i> Add DB Target
+          <i class="ri-add-line"></i>
         </button>
       </div>
 
@@ -93,6 +96,10 @@
           <div class="info-row">
             <span class="label">Current Engine:</span>
             <span class="badge badge-engine" id="infoEngine">PG</span>
+          </div>
+          <div class="info-row">
+            <span class="label">DB Status:</span>
+            <span class="badge badge-db-status" id="infoDbStatus"><i class="ri-question-line"></i> Untested</span>
           </div>
           <div class="info-row">
             <span class="label">Total Changes:</span>
@@ -287,7 +294,7 @@
 
         <div class="form-group">
           <label>Target Name <span class="required">*</span></label>
-          <input type="text" id="newTargetName" placeholder="e.g. dev, staging, prod, my_postgres_db" required>
+          <input type="text" id="newTargetName" placeholder="e.g. SIT, dev, staging, prod, my_db" required>
         </div>
 
         <div class="connection-builder-grid">
@@ -309,7 +316,7 @@
           </div>
           <div class="form-group full-width">
             <label>Database Name / File Path</label>
-            <input type="text" id="targetDbName" placeholder="app_db or path/to/sqlite.db">
+            <input type="text" id="targetDbName" placeholder="app_db or MUFINS">
           </div>
         </div>
 
@@ -318,8 +325,14 @@
           <input type="text" id="newTargetUri" placeholder="e.g. db:pg://user:pass@localhost:5432/dbname" required>
           <small>URI format: <code>db:&lt;engine&gt;://[user[:pass]@]host[:port]/dbname</code></small>
         </div>
+
+        <div id="modalTestResult" class="test-result-box" style="display: none;"></div>
       </div>
+
       <div class="modal-footer">
+        <button class="btn btn-secondary" id="btnTestModalTarget">
+          <i class="ri-wifi-line"></i> Test DB Connection
+        </button>
         <button class="btn btn-secondary" id="btnCancelModalTarget">Cancel</button>
         <button class="btn btn-primary" id="btnSubmitAddTarget">
           <i class="ri-save-line"></i> Add Database Target

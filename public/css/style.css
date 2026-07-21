@@ -196,6 +196,37 @@ select:hover {
   border: 1px solid rgba(56, 189, 248, 0.3);
 }
 
+.badge-db-status {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
+
+.badge-db-status.badge-connected {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.badge-db-status.badge-disconnected {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.badge-db-status.badge-testing {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
 /* -------------------------------------------------------------
  * MAIN CONTAINER
  * ------------------------------------------------------------- */
@@ -294,6 +325,11 @@ select:hover {
   justify-content: center;
   gap: 8px;
   transition: all 0.2s ease;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
 }
 
 .btn-block {
@@ -693,7 +729,7 @@ select:hover {
 }
 
 /* -------------------------------------------------------------
- * MODALS
+ * MODALS & TEST RESULT BOX
  * ------------------------------------------------------------- */
 .modal-backdrop {
   position: fixed;
@@ -772,6 +808,30 @@ select:hover {
 
 .connection-builder-grid .full-width {
   grid-column: span 2;
+}
+
+.test-result-box {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.test-result-box.success {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--success);
+}
+.test-result-box.error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--danger);
+}
+.test-result-box.info {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--warning);
 }
 
 .form-group {
