@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Target Builder Elements
   const targetEngineSelect = document.getElementById('targetEngineSelect');
+  const newTargetName = document.getElementById('newTargetName');
   const targetHost = document.getElementById('targetHost');
   const targetPort = document.getElementById('targetPort');
   const targetUser = document.getElementById('targetUser');
@@ -55,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentProject = null;
   let currentSelectedChange = null;
   let currentActiveScript = 'deploy';
+  let isUriManuallyEdited = false;
   let ws = null;
 
   // Initialize
@@ -474,6 +476,17 @@ document.addEventListener('DOMContentLoaded', () => {
   btnAddTarget.addEventListener('click', () => {
     targetEngineSelect.value = elDbEngineSelect.value;
     modalTestResult.style.display = 'none';
+    isUriManuallyEdited = false;
+    
+    // Clear form inputs
+    newTargetName.value = '';
+    targetHost.value = '';
+    targetPort.value = '';
+    targetUser.value = '';
+    targetPass.value = '';
+    targetDbName.value = '';
+    newTargetUri.value = '';
+
     updateGeneratedUri();
     modalAddTarget.classList.add('show');
   });
@@ -481,7 +494,23 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnCloseModalTarget').addEventListener('click', () => modalAddTarget.classList.remove('show'));
   document.getElementById('btnCancelModalTarget').addEventListener('click', () => modalAddTarget.classList.remove('show'));
 
+  newTargetUri.addEventListener('input', () => {
+    isUriManuallyEdited = true;
+    cleanTargetUri();
+  });
+
+  function cleanTargetUri() {
+    let raw = newTargetUri.value.trim();
+    // Auto-clean doubled db:pg:// or concatenated URIs if user pasted repeatedly
+    const matches = raw.match(/(db:[a-z0-9]+:\/\/[^\s]+)/gi);
+    if (matches && matches.length > 0) {
+      newTargetUri.value = matches[matches.length - 1]; // Use last clean match
+    }
+  }
+
   function updateGeneratedUri() {
+    if (isUriManuallyEdited) return;
+
     const eng = targetEngineSelect.value;
     const host = targetHost.value.trim() || 'localhost';
     const port = targetPort.value.trim() || (eng === 'mysql' ? '3306' : (eng === 'pg' ? '5432' : ''));
@@ -504,12 +533,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   [targetEngineSelect, targetHost, targetPort, targetUser, targetPass, targetDbName].forEach(input => {
-    input.addEventListener('input', updateGeneratedUri);
-    input.addEventListener('change', updateGeneratedUri);
+    input.addEventListener('input', () => {
+      isUriManuallyEdited = false;
+      updateGeneratedUri();
+    });
   });
 
   // Test Connection inside Modal
   btnTestModalTarget.addEventListener('click', async () => {
+    cleanTargetUri();
     const targetUri = newTargetUri.value.trim();
     if (!targetUri) return alert('Target URI is required to test!');
 
@@ -542,7 +574,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btnSubmitAddTarget').addEventListener('click', async () => {
-    const name = document.getElementById('newTargetName').value.trim();
+    cleanTargetUri();
+    const name = newTargetName.value.trim();
     const uri = newTargetUri.value.trim();
     const engine = targetEngineSelect.value;
 
