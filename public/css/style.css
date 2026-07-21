@@ -37,45 +37,47 @@ body.dark-theme {
 
 /* HEADER */
 .app-header {
-  height: 60px;
+  min-height: 60px;
   background-color: var(--bg-card);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  gap: 15px;
+  padding: 8px 15px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .logo-group {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .logo-icon {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   background: linear-gradient(135deg, var(--primary), var(--info));
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 18px;
   color: white;
 }
 
 .logo-text h1 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.2;
 }
 
 .version-badge {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--primary);
   background: rgba(56, 189, 248, 0.1);
-  padding: 1px 6px;
+  padding: 1px 5px;
   border-radius: 4px;
   font-family: var(--font-mono);
 }
@@ -83,21 +85,26 @@ body.dark-theme {
 .header-center {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 1;
+  max-width: 380px;
 }
 
 .project-path-box {
   background-color: var(--bg-dark);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 6px 12px;
+  padding: 5px 10px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--primary);
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   transition: all 0.2s ease;
 }
 
@@ -109,16 +116,57 @@ body.dark-theme {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: nowrap;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .db-engine-selector, .mode-selector, .target-selector {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 12px;
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.target-selector {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+/* Header Buttons styling */
+#btnTestTarget {
+  background-color: #3b82f6;
+  color: white;
+  font-weight: 500;
+}
+#btnTestTarget:hover {
+  background-color: #2563eb;
+}
+
+#btnAddTarget {
+  background-color: #10b981;
+  color: white;
+  font-weight: 500;
+}
+#btnAddTarget:hover {
+  background-color: #059669;
+}
+
+#btnDeleteTarget {
+  background-color: #ef4444;
+  color: white;
+  font-weight: 500;
+  border: none;
+}
+#btnDeleteTarget:hover {
+  background-color: #dc2626;
 }
 
 select, input[type="text"], input[type="password"] {
@@ -126,7 +174,7 @@ select, input[type="text"], input[type="password"] {
   color: var(--text-main);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 6px 10px;
+  padding: 5px 8px;
   font-size: 12px;
   font-family: var(--font-sans);
   outline: none;
@@ -140,14 +188,15 @@ select:focus, input:focus {
 .btn {
   border: none;
   border-radius: 6px;
-  padding: 7px 12px;
+  padding: 6px 10px;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .btn-sm {
@@ -195,14 +244,15 @@ select:focus, input:focus {
 
 /* SIDEBAR */
 .sidebar {
-  width: 260px;
+  width: 250px;
   background-color: var(--bg-card);
   border-right: 1px solid var(--border-color);
-  padding: 15px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 12px;
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .sidebar-section {
@@ -266,31 +316,31 @@ select:focus, input:focus {
 }
 
 .content-header {
-  height: 45px;
+  height: 42px;
   background-color: var(--bg-card);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 15px;
+  padding: 0 12px;
 }
 
 .tab-group {
   display: flex;
-  gap: 5px;
+  gap: 4px;
 }
 
 .tab-btn {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  padding: 8px 12px;
+  padding: 6px 10px;
   font-size: 12px;
   border-radius: 6px 6px 0 0;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .tab-btn.active {
@@ -314,7 +364,7 @@ select:focus, input:focus {
 
 .search-box input {
   padding-left: 28px;
-  width: 220px;
+  width: 200px;
 }
 
 .tab-content {
@@ -342,7 +392,7 @@ select:focus, input:focus {
 }
 
 .plan-table th, .plan-table td {
-  padding: 8px 12px;
+  padding: 8px 10px;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
 }
@@ -373,7 +423,7 @@ tr.is-disabled {
 /* SQL EDITOR */
 .editor-header {
   height: 40px;
-  padding: 0 15px;
+  padding: 0 12px;
   background-color: var(--bg-card);
   border-bottom: 1px solid var(--border-color);
   display: flex;
@@ -424,7 +474,7 @@ tr.is-disabled {
 
 /* TERMINAL DRAWER */
 .terminal-drawer {
-  height: 180px;
+  height: 170px;
   background-color: #050811;
   border-top: 1px solid var(--border-color);
   display: flex;
@@ -432,7 +482,7 @@ tr.is-disabled {
 }
 
 .terminal-header {
-  height: 30px;
+  height: 28px;
   background-color: var(--bg-card);
   padding: 0 10px;
   display: flex;
