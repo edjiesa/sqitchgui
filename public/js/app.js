@@ -24,8 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const elBtnSaveRawPlan = document.getElementById('btnSaveRawPlan');
 
   // Terminal
+  const elTerminalDrawer = document.getElementById('terminalDrawer');
   const elTerminalBody = document.getElementById('terminalBody');
   const elConsoleStatus = document.getElementById('consoleStatus');
+  const elBtnToggleTerminal = document.getElementById('btnToggleTerminal');
+  const elToggleTerminalIcon = document.getElementById('toggleTerminalIcon');
   const elBtnClearTerminal = document.getElementById('btnClearTerminal');
   const elBtnCopyTerminal = document.getElementById('btnCopyTerminal');
 
@@ -782,7 +785,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // -------------------------------------------------------------
-  // TERMINAL LOG HELPER
+  // TERMINAL LOG HELPER & MINIMIZE TOGGLE
   // -------------------------------------------------------------
   function appendTerminalLog(entry) {
     const line = document.createElement('div');
@@ -790,6 +793,19 @@ document.addEventListener('DOMContentLoaded', () => {
     line.textContent = entry.text;
     elTerminalBody.appendChild(line);
     elTerminalBody.scrollTop = elTerminalBody.scrollHeight;
+  }
+
+  if (elBtnToggleTerminal) {
+    elBtnToggleTerminal.addEventListener('click', () => {
+      elTerminalDrawer.classList.toggle('minimized');
+      if (elTerminalDrawer.classList.contains('minimized')) {
+        elToggleTerminalIcon.className = 'ri-add-line';
+        elBtnToggleTerminal.title = 'Expand Console';
+      } else {
+        elToggleTerminalIcon.className = 'ri-subtract-line';
+        elBtnToggleTerminal.title = 'Minimize Console';
+      }
+    });
   }
 
   elBtnClearTerminal.addEventListener('click', () => {

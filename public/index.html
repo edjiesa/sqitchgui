@@ -176,7 +176,7 @@
             <thead>
               <tr>
                 <th width="50">#</th>
-                <th>Type</th>
+                <th width="90">Type</th>
                 <th>Name</th>
                 <th>Requires</th>
                 <th>Planner / Date</th>
@@ -233,30 +233,33 @@
         </div>
       </div>
 
-    </section>
+      <!-- BOTTOM: STREAMING TERMINAL CONSOLE -->
+      <section class="terminal-drawer" id="terminalDrawer">
+        <div class="terminal-header">
+          <div class="terminal-title">
+            <i class="ri-terminal-box-line"></i>
+            <span>Execution Output Console</span>
+            <span class="status-indicator" id="consoleStatus">Ready</span>
+          </div>
+          <div class="terminal-controls">
+            <button class="btn btn-icon btn-secondary" id="btnToggleTerminal" title="Minimize / Expand Console">
+              <i class="ri-subtract-line" id="toggleTerminalIcon"></i>
+            </button>
+            <button class="btn btn-icon btn-secondary" id="btnClearTerminal" title="Clear Output">
+              <i class="ri-delete-bin-line"></i>
+            </button>
+            <button class="btn btn-icon btn-secondary" id="btnCopyTerminal" title="Copy Output">
+              <i class="ri-file-copy-line"></i>
+            </button>
+          </div>
+        </div>
+        <div class="terminal-body" id="terminalBody">
+          <div class="log-line system-welcome">
+            Welcome to <span class="highlight">Sqitch Studio</span>. Ready to execute database migrations.
+          </div>
+        </div>
+      </section>
 
-    <!-- RIGHT / BOTTOM: STREAMING TERMINAL CONSOLE -->
-    <section class="terminal-drawer" id="terminalDrawer">
-      <div class="terminal-header">
-        <div class="terminal-title">
-          <i class="ri-terminal-box-line"></i>
-          <span>Execution Output Console</span>
-          <span class="status-indicator" id="consoleStatus">Ready</span>
-        </div>
-        <div class="terminal-controls">
-          <button class="btn btn-icon btn-secondary" id="btnClearTerminal" title="Clear Output">
-            <i class="ri-delete-bin-line"></i>
-          </button>
-          <button class="btn btn-icon btn-secondary" id="btnCopyTerminal" title="Copy Output">
-            <i class="ri-file-copy-line"></i>
-          </button>
-        </div>
-      </div>
-      <div class="terminal-body" id="terminalBody">
-        <div class="log-line system-welcome">
-          Welcome to <span class="highlight">Sqitch Studio</span>. Ready to execute database migrations.
-        </div>
-      </div>
     </section>
 
   </main>
