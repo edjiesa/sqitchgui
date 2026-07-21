@@ -629,7 +629,14 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadSqlScript(changeName, scriptType) {
     try {
       const res = await fetch(`/api/change/files?name=${encodeURIComponent(changeName)}`);
-      const data = await res.json();
+      const resText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(resText);
+      } catch (err) {
+        throw new Error(`Server error: ${resText.slice(0, 100)}`);
+      }
+
       if (data.success) {
         elSqlTextArea.value = data.files[scriptType] || `-- No ${scriptType}.sql content found for ${changeName}`;
       }
@@ -639,7 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   elBtnSaveSql.addEventListener('click', async () => {
-    if (!currentSelectedChange) return;
+    if (!currentSelectedChange) return alert('Pilih change terlebih dahulu di Plan Timeline!');
 
     try {
       const res = await fetch('/api/change/files', {
@@ -651,12 +658,24 @@ document.addEventListener('DOMContentLoaded', () => {
           content: elSqlTextArea.value
         })
       });
-      const data = await res.json();
+
+      const resText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(resText);
+      } catch (jsonErr) {
+        throw new Error(`Server error: ${resText.slice(0, 100)}`);
+      }
+
       if (data.success) {
         appendTerminalLog({ type: 'success', text: `Successfully saved ${currentActiveScript}/${currentSelectedChange}.sql` });
+        alert(`Berhasil menyimpan ${currentActiveScript}/${currentSelectedChange}.sql`);
+      } else {
+        alert(data.error || 'Failed to save SQL file');
       }
     } catch (e) {
       appendTerminalLog({ type: 'error', text: e.message });
+      alert(e.message);
     }
   });
 

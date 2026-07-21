@@ -355,6 +355,55 @@ app.post('/api/projects/save-meta', (req, res) => {
   res.json({ success: true, project: projectData });
 });
 
+// Read SQL script files for a change
+app.get('/api/change/files', (req, res) => {
+  try {
+    const { name } = req.query;
+    if (!name) return res.status(400).json({ success: false, error: 'Change name required' });
+
+    const cleanName = name.trim();
+    const files = {
+      deploy: '',
+      revert: '',
+      verify: ''
+    };
+
+    ['deploy', 'revert', 'verify'].forEach(type => {
+      const filePath = path.join(currentProjectDir, type, `${cleanName}.sql`);
+      if (fs.existsSync(filePath)) {
+        files[type] = fs.readFileSync(filePath, 'utf8');
+      }
+    });
+
+    res.json({ success: true, name: cleanName, files });
+  } catch (err) {
+    console.error('Error in /api/change/files GET:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Save SQL script file for a change
+app.post('/api/change/files', (req, res) => {
+  try {
+    const { name, type, content } = req.body;
+    if (!name || !type || !['deploy', 'revert', 'verify'].includes(type)) {
+      return res.status(400).json({ success: false, error: 'Invalid parameters.' });
+    }
+
+    const cleanName = name.trim();
+    const dirPath = path.join(currentProjectDir, type);
+    if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+
+    const filePath = path.join(dirPath, `${cleanName}.sql`);
+    fs.writeFileSync(filePath, content || '', 'utf8');
+
+    res.json({ success: true, message: `Updated ${type}/${cleanName}.sql` });
+  } catch (err) {
+    console.error('Error in /api/change/files POST:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Add new change (`sqitch add` with fail-safe file creation)
 app.post('/api/change/add', (req, res) => {
   try {
@@ -374,7 +423,6 @@ app.post('/api/change/add', (req, res) => {
       if (isResponded) return;
       isResponded = true;
 
-      // Ensure files and plan entries are written on disk
       runnerHelper.addDemoChangeFiles(currentProjectDir, cleanName, args);
 
       const projectData = getMergedProjectData(currentProjectDir);
@@ -387,7 +435,6 @@ app.post('/api/change/add', (req, res) => {
 
     runner.run('add', args, currentProjectDir);
 
-    // 2.5 second fallback timeout to ensure prompt response
     setTimeout(() => {
       finishAdd();
     }, 2500);
