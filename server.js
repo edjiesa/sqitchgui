@@ -14,6 +14,29 @@ const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 3000;
 let currentProjectDir = process.cwd();
 
+// Saved projects storage file
+const PROJECTS_STORE = path.join(__dirname, 'saved_projects.json');
+
+function getSavedProjects() {
+  if (fs.existsSync(PROJECTS_STORE)) {
+    try {
+      return JSON.parse(fs.readFileSync(PROJECTS_STORE, 'utf8'));
+    } catch (e) {
+      return [currentProjectDir];
+    }
+  }
+  return [currentProjectDir];
+}
+
+function saveSavedProjects(list) {
+  try {
+    const uniqueList = Array.from(new Set(list));
+    fs.writeFileSync(PROJECTS_STORE, JSON.stringify(uniqueList, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Failed to save projects list:', e);
+  }
+}
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -22,6 +45,7 @@ const runnerHelper = new SqitchRunner();
 if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
   runnerHelper.initDemoProjectFiles(currentProjectDir, 'sqitch_demo_db', 'pg');
 }
+saveSavedProjects(getSavedProjects());
 
 // -------------------------------------------------------------
 // REST API ROUTES
@@ -41,23 +65,95 @@ app.get('/api/env', (req, res) => {
 app.get('/api/project', (req, res) => {
   try {
     const projectData = SqitchPlanParser.parseProject(currentProjectDir);
-    res.json({ success: true, project: projectData });
+    const savedProjects = getSavedProjects();
+    res.json({
+      success: true,
+      project: projectData,
+      savedProjects
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Change project directory
-app.post('/api/project/path', (req, res) => {
+// Get saved projects list
+app.get('/api/projects', (req, res) => {
+  const list = getSavedProjects();
+  res.json({ success: true, projects: list, currentProjectDir });
+});
+
+// Switch working project directory
+app.post('/api/projects/switch', (req, res) => {
   const { path: newPath } = req.body;
   if (!newPath || !fs.existsSync(newPath)) {
-    return res.status(400).json({ success: false, error: 'Invalid directory path.' });
+    return res.status(400).json({ success: false, error: `Directory does not exist: ${newPath}` });
   }
 
   currentProjectDir = path.resolve(newPath);
+
+  // Initialize demo files if sqitch.plan is missing in the chosen directory
   if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
-    runnerHelper.initDemoProjectFiles(currentProjectDir, 'app_db', 'pg');
+    const defaultName = path.basename(currentProjectDir) || 'app_db';
+    runnerHelper.initDemoProjectFiles(currentProjectDir, defaultName, 'pg');
   }
+
+  // Update saved list
+  const list = getSavedProjects();
+  if (!list.includes(currentProjectDir)) {
+    list.unshift(currentProjectDir);
+    saveSavedProjects(list);
+  }
+
+  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  res.json({ success: true, project: projectData, savedProjects: list, currentProjectDir });
+});
+
+// Delete/Remove project from saved projects list
+app.post('/api/projects/delete', (req, res) => {
+  const { path: targetPath } = req.body;
+  if (!targetPath) return res.status(400).json({ success: false, error: 'Path is required' });
+
+  let list = getSavedProjects();
+  list = list.filter(p => path.resolve(p) !== path.resolve(targetPath));
+  saveSavedProjects(list);
+
+  // If deleted current project, switch to first available or cwd
+  if (path.resolve(currentProjectDir) === path.resolve(targetPath)) {
+    currentProjectDir = list.length > 0 ? list[0] : process.cwd();
+  }
+
+  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  res.json({ success: true, project: projectData, savedProjects: list, currentProjectDir });
+});
+
+// Save Project Meta (Name, URI) in sqitch.plan
+app.post('/api/projects/save-meta', (req, res) => {
+  const { name, uri } = req.body;
+  const planPath = path.join(currentProjectDir, 'sqitch.plan');
+
+  if (!fs.existsSync(planPath)) {
+    return res.status(400).json({ success: false, error: 'sqitch.plan file not found' });
+  }
+
+  let content = fs.readFileSync(planPath, 'utf8');
+
+  if (name) {
+    if (content.includes('%project=')) {
+      content = content.replace(/%project=.*(\r?\n)/, `%project=${name}$1`);
+    } else {
+      content = `%project=${name}\n` + content;
+    }
+  }
+
+  if (uri) {
+    if (content.includes('%uri=')) {
+      content = content.replace(/%uri=.*(\r?\n)/, `%uri=${uri}$1`);
+    } else {
+      content = `%uri=${uri}\n` + content;
+    }
+  }
+
+  fs.writeFileSync(planPath, content, 'utf8');
 
   const projectData = SqitchPlanParser.parseProject(currentProjectDir);
   res.json({ success: true, project: projectData });

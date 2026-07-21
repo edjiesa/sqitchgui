@@ -39,6 +39,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Modals
   const modalAddChange = document.getElementById('modalAddChange');
   const modalAddTarget = document.getElementById('modalAddTarget');
+  const modalProjectManager = document.getElementById('modalProjectManager');
+  const btnOpenProjectManager = document.getElementById('btnOpenProjectManager');
+
+  // Project Manager Elements
+  const switchProjectPathInput = document.getElementById('switchProjectPathInput');
+  const btnSubmitSwitchProject = document.getElementById('btnSubmitSwitchProject');
+  const saveProjNameInput = document.getElementById('saveProjNameInput');
+  const saveProjUriInput = document.getElementById('saveProjUriInput');
+  const btnSubmitSaveProjMeta = document.getElementById('btnSubmitSaveProjMeta');
+  const savedProjectsList = document.getElementById('savedProjectsList');
 
   // Target Builder Elements
   const targetEngineSelect = document.getElementById('targetEngineSelect');
@@ -57,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentSelectedChange = null;
   let currentActiveScript = 'deploy';
   let isUriManuallyEdited = false;
+  let savedProjects = [];
   let ws = null;
 
   // Initialize
@@ -117,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -------------------------------------------------------------
-  // API FETCHERS
+  // API FETCHERS & PROJECT MANAGER
   // -------------------------------------------------------------
   async function fetchEnv() {
     try {
@@ -126,6 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.success) {
         const { env, currentProjectDir } = data;
         elCurrentPathText.textContent = currentProjectDir;
+        switchProjectPathInput.value = currentProjectDir;
         elModeSelect.value = env.recommendedMode;
       }
     } catch (e) {
@@ -138,11 +150,127 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/project');
       const data = await res.json();
       if (data.success) {
+        if (data.savedProjects) savedProjects = data.savedProjects;
         renderProject(data.project);
       }
     } catch (e) {
       console.error(e);
     }
+  }
+
+  // Open Project Manager Modal
+  btnOpenProjectManager.addEventListener('click', () => {
+    renderSavedProjectsList();
+    modalProjectManager.classList.add('show');
+  });
+
+  document.getElementById('btnCloseModalProjManager').addEventListener('click', () => modalProjectManager.classList.remove('show'));
+  document.getElementById('btnCancelModalProjManager').addEventListener('click', () => modalProjectManager.classList.remove('show'));
+
+  // Switch Project Directory
+  btnSubmitSwitchProject.addEventListener('click', () => {
+    const targetPath = switchProjectPathInput.value.trim();
+    if (!targetPath) return alert('Path is required!');
+    switchProjectDirectory(targetPath);
+  });
+
+  async function switchProjectDirectory(targetPath) {
+    try {
+      const res = await fetch('/api/projects/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: targetPath })
+      });
+      const data = await res.json();
+      if (data.success) {
+        elCurrentPathText.textContent = data.currentProjectDir;
+        if (data.savedProjects) savedProjects = data.savedProjects;
+        renderProject(data.project);
+        renderSavedProjectsList();
+        appendTerminalLog({ type: 'success', text: `Switched project directory to: ${data.currentProjectDir}` });
+        modalProjectManager.classList.remove('show');
+      } else {
+        alert(data.error || 'Failed to switch project');
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  // Save Project Metadata (Name, URI)
+  btnSubmitSaveProjMeta.addEventListener('click', async () => {
+    const name = saveProjNameInput.value.trim();
+    const uri = saveProjUriInput.value.trim();
+
+    try {
+      const res = await fetch('/api/projects/save-meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, uri })
+      });
+      const data = await res.json();
+      if (data.success) {
+        renderProject(data.project);
+        appendTerminalLog({ type: 'success', text: `Saved project settings: Name='${name}', URI='${uri}'` });
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+
+  // Delete Saved Project from List
+  window.deleteSavedProject = async function(pathToDelete) {
+    if (!confirm(`Remove project path '${pathToDelete}' from saved list?`)) return;
+
+    try {
+      const res = await fetch('/api/projects/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: pathToDelete })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (data.savedProjects) savedProjects = data.savedProjects;
+        renderProject(data.project);
+        renderSavedProjectsList();
+        elCurrentPathText.textContent = data.currentProjectDir;
+        appendTerminalLog({ type: 'info', text: `Removed project path '${pathToDelete}' from list.` });
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  window.openSavedProject = function(path') {
+    switchProjectDirectory(path');
+  };
+
+  function renderSavedProjectsList() {
+    if (!savedProjects || savedProjects.length === 0) {
+      savedProjectsList.innerHTML = '<span class="no-tags">No saved project workspaces yet.</span>';
+      return;
+    }
+
+    const currentNorm = (elCurrentPathText.textContent || '').toLowerCase();
+
+    savedProjectsList.innerHTML = savedProjects.map(p => {
+      const isActive = p.toLowerCase() === currentNorm;
+      const cardClass = isActive ? 'project-item-card is-active' : 'project-item-card';
+
+      return `
+        <div class="${cardClass}">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i class="ri-folder-3-fill" style="color: var(--primary);"></i>
+            <span class="proj-path-text">${p}</span>
+            ${isActive ? '<span class="badge badge-native" style="font-size:10px; padding: 1px 6px;">Active</span>' : ''}
+          </div>
+          <div class="proj-actions">
+            ${!isActive ? `<button class="btn btn-primary btn-xs" onclick="window.openSavedProject('${p.replace(/\\/g, '\\\\')}')"><i class="ri-folder-open-line"></i> Open</button>` : ''}
+            <button class="btn btn-danger-outline btn-xs" onclick="window.deleteSavedProject('${p.replace(/\\/g, '\\\\')}')" title="Remove from list"><i class="ri-delete-bin-line"></i></button>
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   // Engine Switcher
@@ -241,6 +369,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const meta = project.meta || {};
     elInfoProjectName.textContent = meta.project || 'Untitled Project';
+    saveProjNameInput.value = meta.project || '';
+    saveProjUriInput.value = meta.uri || '';
 
     const config = project.config || {};
     const engine = config.core?.engine || 'pg';
