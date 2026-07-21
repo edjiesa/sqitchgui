@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const elDbEngineSelect = document.getElementById('dbEngineSelect');
   const elModeSelect = document.getElementById('modeSelect');
   const elTargetSelect = document.getElementById('targetSelect');
-  const elEnvStatusBadge = document.getElementById('envStatusBadge');
 
   const elInfoProjectName = document.getElementById('infoProjectName');
   const elInfoEngine = document.getElementById('infoEngine');
@@ -127,18 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.success) {
         const { env, currentProjectDir } = data;
         elCurrentPathText.textContent = currentProjectDir;
-
-        if (env.recommendedMode === 'native') {
-          elEnvStatusBadge.className = 'env-status-badge badge-native';
-          elEnvStatusBadge.innerHTML = `<i class="ri-check-line"></i> Native (${env.nativeVersion})`;
-        } else if (env.recommendedMode === 'docker') {
-          elEnvStatusBadge.className = 'env-status-badge badge-docker';
-          elEnvStatusBadge.innerHTML = `<i class="ri-instance-line"></i> Docker (${env.dockerVersion})`;
-        } else {
-          elEnvStatusBadge.className = 'env-status-badge badge-simulated';
-          elEnvStatusBadge.innerHTML = `<i class="ri-flask-line"></i> Simulated Mode`;
-        }
-
         elModeSelect.value = env.recommendedMode;
       }
     } catch (e) {
