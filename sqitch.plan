@@ -1,17 +1,4 @@
 %syntax-version=1.0.0
-%project=sqitch_demo_db
-%uri=https://github.com/user/sqitch_demo_db
+%project=sqitchgui
+%uri=https://github.com/edjiesa/sqitchgui
 
-# Database initial schema setup
-app_schema 2026-07-21T02:00:00Z Sqitch Developer <dev@example.com> # Create application schema
-
-# User authentication tables
-users_table [app_schema] 2026-07-21T02:10:00Z Sqitch Developer <dev@example.com> # Create users and credentials table
-
-# User roles & permissions
-add_user_roles [users_table] 2026-07-21T02:20:00Z Sqitch Developer <dev@example.com> # Add role enum and roles table
-
-@v1.0.0 2026-07-21T02:30:00Z Sqitch Developer <dev@example.com> # Release version 1.0.0
-
-# Audit logging
-audit_logs [users_table] 2026-07-21T02:40:00Z Sqitch Developer <dev@example.com> # Create audit logs table and trigger

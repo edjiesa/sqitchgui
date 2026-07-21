@@ -78,10 +78,10 @@ function saveSavedProjects(list) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Ensure demo project exists if current project is empty
+// Ensure empty project file exists if current project has no plan
 const runnerHelper = new SqitchRunner();
 if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
-  runnerHelper.initDemoProjectFiles(currentProjectDir, 'sqitch_demo_db', 'pg');
+  runnerHelper.initEmptyProjectFiles(currentProjectDir, 'sqitchgui', 'pg');
 }
 saveSavedProjects(getSavedProjects());
 
@@ -100,7 +100,7 @@ app.get('/api/env', (req, res) => {
   });
 });
 
-// Get project details, saved projects, and metadata
+// Get project details, saved projects, and metadata directly from sqitch.plan inside the active project directory
 app.get('/api/project', (req, res) => {
   try {
     const projectData = SqitchPlanParser.parseProject(currentProjectDir);
@@ -146,7 +146,7 @@ app.get('/api/projects', (req, res) => {
   });
 });
 
-// Create New Project in /opt/sqitchgui/<projectName>
+// Create New Project in /opt/sqitchgui/<projectName> with a clean empty sqitch.plan
 app.post('/api/projects/create', (req, res) => {
   const { name, engine = 'pg' } = req.body;
   if (!name || !name.trim()) {
@@ -170,8 +170,8 @@ app.post('/api/projects/create', (req, res) => {
     fs.mkdirSync(targetProjDir, { recursive: true });
   }
 
-  // Initialize demo project files in /opt/sqitchgui/<cleanName>
-  runnerHelper.initDemoProjectFiles(targetProjDir, cleanName, engine);
+  // Initialize clean empty project files in /opt/sqitchgui/<cleanName>
+  runnerHelper.initEmptyProjectFiles(targetProjDir, cleanName, engine);
 
   currentProjectDir = targetProjDir;
 
@@ -200,10 +200,10 @@ app.post('/api/projects/switch', (req, res) => {
 
   currentProjectDir = path.resolve(newPath);
 
-  // Initialize demo files if sqitch.plan is missing in the chosen directory
+  // Initialize empty project files ONLY if sqitch.plan is missing in the chosen directory
   if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
     const defaultName = path.basename(currentProjectDir) || 'app_db';
-    runnerHelper.initDemoProjectFiles(currentProjectDir, defaultName, 'pg');
+    runnerHelper.initEmptyProjectFiles(currentProjectDir, defaultName, 'pg');
   }
 
   // Update saved list
@@ -292,7 +292,7 @@ app.post('/api/projects/save-meta', (req, res) => {
 // Initialize new sqitch project
 app.post('/api/project/init', (req, res) => {
   const { name = 'app_db', engine = 'pg' } = req.body;
-  runnerHelper.initDemoProjectFiles(currentProjectDir, name, engine);
+  runnerHelper.initEmptyProjectFiles(currentProjectDir, name, engine);
   const projectData = SqitchPlanParser.parseProject(currentProjectDir);
   res.json({ success: true, project: projectData });
 });
