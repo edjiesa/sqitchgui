@@ -192,6 +192,80 @@ app.get('/api/project', (req, res) => {
   }
 });
 
+// Get raw sqitch.plan file content
+app.get('/api/plan', (req, res) => {
+  try {
+    const planPath = path.join(currentProjectDir, 'sqitch.plan');
+    const content = fs.existsSync(planPath) ? fs.readFileSync(planPath, 'utf8') : '';
+    res.json({ success: true, content, planPath });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Save raw sqitch.plan file content
+app.post('/api/plan', (req, res) => {
+  try {
+    const { content } = req.body;
+    const planPath = path.join(currentProjectDir, 'sqitch.plan');
+    fs.writeFileSync(planPath, content || '', 'utf8');
+
+    SqitchPlanParser.sanitizePlanFile(planPath);
+
+    const projectData = getMergedProjectData(currentProjectDir);
+    res.json({ success: true, project: projectData });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Toggle / Enable / Disable a change in sqitch.plan by commenting (#) or uncommenting
+app.post('/api/plan/toggle-change', (req, res) => {
+  try {
+    const { name, enable } = req.body;
+    if (!name) return res.status(400).json({ success: false, error: 'Change name is required' });
+
+    const planPath = path.join(currentProjectDir, 'sqitch.plan');
+    if (!fs.existsSync(planPath)) {
+      return res.status(400).json({ success: false, error: 'sqitch.plan file not found' });
+    }
+
+    let content = fs.readFileSync(planPath, 'utf8');
+    const lines = content.split(/\r?\n/);
+    const newLines = lines.map(line => {
+      const trimmed = line.trim();
+      
+      // Match active change line
+      const activeMatch = trimmed.match(/^([a-zA-Z0-9_\-\.\/]+)(?:\s+\[([^\]]+)\])?(?:\s+([0-9T:Z\-]+))?/);
+      if (activeMatch && activeMatch[1] === name) {
+        if (!enable) {
+          // Disable by adding # at the beginning
+          return `# ${line}`;
+        }
+      }
+
+      // Match disabled commented change line (# name ...)
+      const commentedMatch = trimmed.match(/^#\s*([a-zA-Z0-9_\-\.\/]+)(?:\s+\[([^\]]+)\])?(?:\s+([0-9T:Z\-]+))?/);
+      if (commentedMatch && commentedMatch[1] === name) {
+        if (enable) {
+          // Enable by stripping leading #
+          return line.replace(/^#\s*/, '');
+        }
+      }
+
+      return line;
+    });
+
+    fs.writeFileSync(planPath, newLines.join('\n'), 'utf8');
+    SqitchPlanParser.sanitizePlanFile(planPath);
+
+    const projectData = getMergedProjectData(currentProjectDir);
+    res.json({ success: true, project: projectData, name, enable });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get saved and scanned projects list with names
 app.get('/api/projects', (req, res) => {
   const list = getSavedProjects();

@@ -15,10 +15,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const elPlanTableBody = document.getElementById('planTableBody');
   const elSearchInput = document.getElementById('searchChangesInput');
 
-  // SQL Editor
+  // Editors
   const elEditorChangeName = document.getElementById('editorChangeName');
   const elSqlTextArea = document.getElementById('sqlTextArea');
   const elBtnSaveSql = document.getElementById('btnSaveSql');
+
+  const elPlanTextArea = document.getElementById('planTextArea');
+  const elBtnSaveRawPlan = document.getElementById('btnSaveRawPlan');
 
   // Terminal
   const elTerminalBody = document.getElementById('terminalBody');
@@ -144,6 +147,29 @@ document.addEventListener('DOMContentLoaded', () => {
     sendCommand('deploy', ['--to-change', changeName]);
   };
 
+  // Toggle Enable / Disable Change in sqitch.plan (# comment)
+  window.toggleChangeEnable = async function(changeName, enable) {
+    const actionStr = enable ? 'Mengaktifkan' : 'Menonaktifkan (# comment)';
+    appendTerminalLog({ type: 'info', text: `${actionStr} change '${changeName}' di sqitch.plan...` });
+
+    try {
+      const res = await fetch('/api/plan/toggle-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: changeName, enable })
+      });
+      const data = await res.json();
+      if (data.success) {
+        renderProject(data.project);
+        appendTerminalLog({ type: 'success', text: `Berhasil ${actionStr} change '${changeName}' di sqitch.plan` });
+      } else {
+        alert(data.error || 'Gagal mengubah status change');
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
   // -------------------------------------------------------------
   // API FETCHERS & PROJECT MANAGER
   // -------------------------------------------------------------
@@ -195,6 +221,39 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error(e);
     }
   }
+
+  // Raw sqitch.plan loader & saver
+  async function loadRawPlanContent() {
+    try {
+      const res = await fetch('/api/plan');
+      const data = await res.json();
+      if (data.success) {
+        elPlanTextArea.value = data.content || '';
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  elBtnSaveRawPlan.addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: elPlanTextArea.value })
+      });
+      const data = await res.json();
+      if (data.success) {
+        renderProject(data.project);
+        appendTerminalLog({ type: 'success', text: `Berhasil menyimpan berkas sqitch.plan` });
+        alert('Berhasil menyimpan sqitch.plan!');
+      } else {
+        alert(data.error || 'Gagal menyimpan sqitch.plan');
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  });
 
   // Live preview for Create Project Path
   createProjNameInput.addEventListener('input', () => {
@@ -552,8 +611,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderPlanTable(changes);
 
     // Auto-select first change for SQL editor if none selected
-    if (changes.length > 0 && !currentSelectedChange) {
-      selectChangeForEditor(changes[0].name);
+    const activeChanges = changes.filter(c => !c.disabled);
+    if (activeChanges.length > 0 && !currentSelectedChange) {
+      selectChangeForEditor(activeChanges[0].name);
     }
   }
 
@@ -577,7 +637,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     elPlanTableBody.innerHTML = filtered.map((item, idx) => {
       const isTag = item.type === 'tag';
-      const rowClass = isTag ? 'is-tag' : '';
+      const isDisabled = item.disabled;
+      const rowClass = isDisabled ? 'is-disabled' : (isTag ? 'is-tag' : '');
 
       const reqsHtml = item.requires && item.requires.length > 0
         ? item.requires.map(r => `<span class="req-tag">${r}</span>`).join('')
@@ -585,18 +646,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const plannerDate = item.timestamp
         ? `${item.planner || 'Dev'} (${item.timestamp.split('T')[0]})`
-        : '-';
+        : (isDisabled ? 'Nonaktif (#)' : '-');
+
+      const typeBadge = isDisabled
+        ? '<span class="badge" style="background: rgba(239,68,68,0.2); color: var(--danger); padding: 2px 6px; border-radius: 4px; font-size:11px;"><i class="ri-eye-off-line"></i> DISABLED</span>'
+        : (isTag
+            ? '<span class="badge" style="background: rgba(245,158,11,0.2); color: var(--warning); padding: 2px 6px; border-radius: 4px; font-size:11px;">TAG</span>'
+            : '<span class="badge" style="background: rgba(56,189,248,0.2); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size:11px;">CHANGE</span>');
 
       return `
-        <tr class="${rowClass}">
+        <tr class="${rowClass}" style="${isDisabled ? 'opacity: 0.5; background: rgba(255,255,255,0.02);' : ''}">
           <td><strong>${idx + 1}</strong></td>
+          <td>${typeBadge}</td>
           <td>
-            ${isTag
-              ? '<span class="badge" style="background: rgba(245,158,11,0.2); color: var(--warning); padding: 2px 6px; border-radius: 4px; font-size:11px;">TAG</span>'
-              : '<span class="badge" style="background: rgba(56,189,248,0.2); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size:11px;">CHANGE</span>'}
-          </td>
-          <td>
-            <span class="change-name" style="cursor: pointer;" onclick="window.selectChange('${item.name}')">
+            <span class="change-name" style="cursor: pointer; ${isDisabled ? 'text-decoration: line-through;' : ''}" onclick="window.selectChange('${item.name}')">
               ${isTag ? '@' + item.name : item.name}
             </span>
           </td>
@@ -608,9 +671,16 @@ document.addEventListener('DOMContentLoaded', () => {
               <button class="btn btn-secondary btn-xs" onclick="window.selectChange('${item.name}')" title="Edit SQL">
                 <i class="ri-edit-line"></i> SQL
               </button>
-              <button class="btn btn-success btn-xs" onclick="window.deploySingleChange('${item.name}')" title="Jalankan change ini (sqitch deploy --to-change ${item.name})">
-                <i class="ri-play-line"></i>
-              </button>
+              ${isDisabled
+                ? `<button class="btn btn-success btn-xs" onclick="window.toggleChangeEnable('${item.name}', true)" title="Aktifkan kembali change ini di sqitch.plan">
+                     <i class="ri-eye-line"></i> Aktifkan
+                   </button>`
+                : `<button class="btn btn-warning-outline btn-xs" onclick="window.toggleChangeEnable('${item.name}', false)" title="Nonaktifkan change ini (# comment) di sqitch.plan">
+                     <i class="ri-eye-off-line"></i> Nonaktif
+                   </button>
+                   <button class="btn btn-success btn-xs" onclick="window.deploySingleChange('${item.name}')" title="Jalankan change ini (sqitch deploy --to-change ${item.name})">
+                     <i class="ri-play-line"></i>
+                   </button>`}
             </div>
           </td>
         </tr>
@@ -619,7 +689,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -------------------------------------------------------------
-  // SQL SCRIPT EDITOR LOGIC
+  // SQL & PLAN EDITOR LOGIC
   // -------------------------------------------------------------
   window.selectChange = function(changeName) {
     selectChangeForEditor(changeName);
@@ -704,6 +774,10 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.classList.add('active');
       const targetTab = document.getElementById(`tab-${btn.dataset.tab}`);
       if (targetTab) targetTab.classList.add('active');
+
+      if (btn.dataset.tab === 'plan-editor') {
+        loadRawPlanContent();
+      }
     });
   });
 

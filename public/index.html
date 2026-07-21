@@ -159,6 +159,9 @@
           <button class="tab-btn" data-tab="sql-editor">
             <i class="ri-code-s-slash-line"></i> SQL Script Editor
           </button>
+          <button class="tab-btn" data-tab="plan-editor">
+            <i class="ri-file-code-line"></i> Edit `sqitch.plan`
+          </button>
         </div>
         <div class="search-box">
           <i class="ri-search-line"></i>
@@ -178,7 +181,7 @@
                 <th>Requires</th>
                 <th>Planner / Date</th>
                 <th>Note</th>
-                <th width="140">Actions</th>
+                <th width="200">Actions</th>
               </tr>
             </thead>
             <tbody id="planTableBody">
@@ -209,6 +212,24 @@
 
         <div class="editor-container">
           <textarea id="sqlTextArea" placeholder="-- SQL script content will appear here..."></textarea>
+        </div>
+      </div>
+
+      <!-- TAB 3: RAW PLAN EDITOR -->
+      <div class="tab-content" id="tab-plan-editor">
+        <div class="editor-header">
+          <div class="editor-title">
+            <span class="selected-change-label"><i class="ri-file-edit-line"></i> Editing File:</span>
+            <strong>sqitch.plan</strong>
+          </div>
+
+          <button class="btn btn-primary" id="btnSaveRawPlan">
+            <i class="ri-save-line"></i> Save `sqitch.plan`
+          </button>
+        </div>
+
+        <div class="editor-container">
+          <textarea id="planTextArea" placeholder="# sqitch.plan raw content will appear here..."></textarea>
         </div>
       </div>
 
