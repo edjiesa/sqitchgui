@@ -36,11 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDeleteTarget = document.getElementById('btnDeleteTarget');
   const btnTestTarget = document.getElementById('btnTestTarget');
 
-  // Modals
+  // Modals & Project Manager
   const modalAddChange = document.getElementById('modalAddChange');
   const modalAddTarget = document.getElementById('modalAddTarget');
   const modalProjectManager = document.getElementById('modalProjectManager');
   const btnOpenProjectManager = document.getElementById('btnOpenProjectManager');
+  const btnHeaderManageProjects = document.getElementById('btnHeaderManageProjects');
+  const btnSidebarManageProjects = document.getElementById('btnSidebarManageProjects');
 
   // Project Manager Elements
   const switchProjectPathInput = document.getElementById('switchProjectPathInput');
@@ -159,10 +161,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Open Project Manager Modal
-  btnOpenProjectManager.addEventListener('click', () => {
+  function openProjectManager() {
     renderSavedProjectsList();
     modalProjectManager.classList.add('show');
-  });
+  }
+
+  if (btnOpenProjectManager) btnOpenProjectManager.addEventListener('click', openProjectManager);
+  if (btnHeaderManageProjects) btnHeaderManageProjects.addEventListener('click', openProjectManager);
+  if (btnSidebarManageProjects) btnSidebarManageProjects.addEventListener('click', openProjectManager);
 
   document.getElementById('btnCloseModalProjManager').addEventListener('click', () => modalProjectManager.classList.remove('show'));
   document.getElementById('btnCancelModalProjManager').addEventListener('click', () => modalProjectManager.classList.remove('show'));
@@ -184,6 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       if (data.success) {
         elCurrentPathText.textContent = data.currentProjectDir;
+        switchProjectPathInput.value = data.currentProjectDir;
         if (data.savedProjects) savedProjects = data.savedProjects;
         renderProject(data.project);
         renderSavedProjectsList();
@@ -234,6 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderProject(data.project);
         renderSavedProjectsList();
         elCurrentPathText.textContent = data.currentProjectDir;
+        switchProjectPathInput.value = data.currentProjectDir;
         appendTerminalLog({ type: 'info', text: `Removed project path '${pathToDelete}' from list.` });
       }
     } catch (e) {
@@ -266,8 +274,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ${isActive ? '<span class="badge badge-native" style="font-size:10px; padding: 1px 6px;">Active</span>' : ''}
           </div>
           <div class="proj-actions">
-            ${!isActive ? `<button class="btn btn-primary btn-xs" onclick="window.openSavedProject('${escapedPath}')"><i class="ri-folder-open-line"></i> Open</button>` : ''}
-            <button class="btn btn-danger-outline btn-xs" onclick="window.deleteSavedProject('${escapedPath}')" title="Remove from list"><i class="ri-delete-bin-line"></i></button>
+            ${!isActive ? `<button class="btn btn-primary btn-xs" onclick="window.openSavedProject('${escapedPath}')"><i class="ri-folder-open-line"></i> Buka</button>` : ''}
+            <button class="btn btn-danger-outline btn-xs" onclick="window.deleteSavedProject('${escapedPath}')" title="Hapus dari daftar"><i class="ri-delete-bin-line"></i> Hapus</button>
           </div>
         </div>
       `;

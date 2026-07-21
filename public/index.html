@@ -27,11 +27,14 @@
     </div>
 
     <div class="header-center">
-      <div class="project-path-box" id="btnOpenProjectManager" title="Click to Manage / Switch / Save / Delete Projects">
+      <div class="project-path-box" id="btnOpenProjectManager" title="Click to Open / Switch / Save / Delete Projects">
         <i class="ri-folder-open-line"></i>
         <span id="currentPathText">Loading project...</span>
         <i class="ri-arrow-down-s-line" style="margin-left: 4px; opacity: 0.6;"></i>
       </div>
+      <button class="btn btn-secondary btn-sm" id="btnHeaderManageProjects" title="Open Project Manager Modal" style="margin-left: 8px;">
+        <i class="ri-folder-settings-line"></i> Manage Projects
+      </button>
     </div>
 
     <div class="header-actions">
@@ -110,6 +113,9 @@
             <span class="value" id="infoTotalTags">0</span>
           </div>
         </div>
+        <button class="btn btn-secondary btn-block btn-sm" id="btnSidebarManageProjects" style="margin-top: 6px;">
+          <i class="ri-folder-settings-line"></i> Manage Projects (Buka/Simpan/Hapus)
+        </button>
       </div>
 
       <div class="sidebar-section">
@@ -245,41 +251,41 @@
         
         <!-- SECTION 1: SWITCH OR OPEN PROJECT PATH -->
         <div class="form-group">
-          <label>Open Project Directory Path</label>
+          <label><i class="ri-folder-open-line"></i> 1. Membuka / Mengganti Project (Open Project Directory)</label>
           <div style="display: flex; gap: 8px;">
             <input type="text" id="switchProjectPathInput" placeholder="e.g. C:\DATA\GITHUB\SQITCHGUI or /opt/sqitchgui" style="flex: 1;">
             <button class="btn btn-primary" id="btnSubmitSwitchProject">
-              <i class="ri-folder-open-line"></i> Open Project
+              <i class="ri-folder-open-line"></i> Buka Project
             </button>
           </div>
-          <small>Enter absolute path of any folder containing <code>sqitch.plan</code> (or initialize a new project there).</small>
+          <small>Masukkan path folder absolut yang berisi <code>sqitch.plan</code>.</small>
         </div>
 
         <hr style="border: none; border-top: 1px solid var(--border-color); margin: 6px 0;">
 
         <!-- SECTION 2: EDIT & SAVE PROJECT METADATA -->
         <div class="form-group">
-          <label>Project Metadata (`sqitch.plan` header)</label>
+          <label><i class="ri-save-line"></i> 2. Menyimpan Metadata Project (`sqitch.plan` header)</label>
           <div class="connection-builder-grid" style="margin-top: 4px;">
             <div class="form-group">
-              <label>Project Name</label>
+              <label>Nama Project</label>
               <input type="text" id="saveProjNameInput" placeholder="e.g. sqitch_demo_db, smmf_mufins">
             </div>
             <div class="form-group">
-              <label>Project URI / Repository URL</label>
+              <label>Project URI / Repo URL</label>
               <input type="text" id="saveProjUriInput" placeholder="e.g. https://github.com/user/project">
             </div>
           </div>
           <button class="btn btn-secondary btn-sm" id="btnSubmitSaveProjMeta" style="align-self: flex-start; margin-top: 8px;">
-            <i class="ri-save-line"></i> Save Project Settings
+            <i class="ri-save-line"></i> Simpan Metadata Project
           </button>
         </div>
 
         <hr style="border: none; border-top: 1px solid var(--border-color); margin: 6px 0;">
 
-        <!-- SECTION 3: SAVED PROJECTS LIST -->
+        <!-- SECTION 3: SAVED PROJECTS LIST (OPEN / DELETE) -->
         <div class="form-group">
-          <label>Saved / Recent Workspaces</label>
+          <label><i class="ri-delete-bin-line"></i> 3. Menghapus / Mengganti Workspace Tersimpan</label>
           <div class="saved-projects-list" id="savedProjectsList">
             <!-- Dynamically populated -->
           </div>
