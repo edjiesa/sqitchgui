@@ -73,6 +73,36 @@ function syncSharedTargetsToConfig(projectDir) {
   }
 }
 
+// Get merged project data ensuring ALL shared targets are combined and synced
+function getMergedProjectData(projectDir) {
+  syncSharedTargetsToConfig(projectDir);
+  const projectData = SqitchPlanParser.parseProject(projectDir);
+  const shared = getSharedTargets();
+
+  // Scan and register any targets found in sqitch.conf into shared store
+  if (projectData.config && projectData.config.target) {
+    let addedNew = false;
+    Object.keys(projectData.config.target).forEach(tName => {
+      if (!shared[tName]) {
+        const tObj = projectData.config.target[tName];
+        shared[tName] = typeof tObj === 'object' ? tObj : { uri: tObj };
+        addedNew = true;
+      }
+    });
+    if (addedNew) {
+      saveSharedTargets(shared);
+    }
+  }
+
+  // Ensure ALL shared targets are present in projectData.config.target
+  if (!projectData.config.target) projectData.config.target = {};
+  Object.keys(shared).forEach(tName => {
+    projectData.config.target[tName] = shared[tName];
+  });
+
+  return projectData;
+}
+
 function scanProjectsInRootDir(rootDir) {
   const discovered = [];
   try {
@@ -131,7 +161,7 @@ if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
   runnerHelper.initEmptyProjectFiles(currentProjectDir, 'sqitchgui', 'pg');
 }
 saveSavedProjects(getSavedProjects());
-syncSharedTargetsToConfig(currentProjectDir);
+getMergedProjectData(currentProjectDir);
 
 // -------------------------------------------------------------
 // REST API ROUTES
@@ -148,21 +178,10 @@ app.get('/api/env', (req, res) => {
   });
 });
 
-// Get project details, merged with shared target DBs
+// Get project details, merged with all shared target DBs
 app.get('/api/project', (req, res) => {
   try {
-    syncSharedTargetsToConfig(currentProjectDir);
-    const projectData = SqitchPlanParser.parseProject(currentProjectDir);
-    const sharedTargets = getSharedTargets();
-
-    // Merge shared targets into project config target object
-    if (!projectData.config.target) projectData.config.target = {};
-    Object.keys(sharedTargets).forEach(tName => {
-      if (!projectData.config.target[tName]) {
-        projectData.config.target[tName] = sharedTargets[tName];
-      }
-    });
-
+    const projectData = getMergedProjectData(currentProjectDir);
     const savedProjects = getSavedProjects();
     res.json({
       success: true,
@@ -180,7 +199,7 @@ app.get('/api/projects', (req, res) => {
   const list = getSavedProjects();
   const projectSummaries = list.map(pPath => {
     try {
-      const pData = SqitchPlanParser.parseProject(pPath);
+      const pData = getMergedProjectData(pPath);
       return {
         path: pPath,
         name: pData.meta.project || path.basename(pPath),
@@ -231,15 +250,13 @@ app.post('/api/projects/create', (req, res) => {
   runnerHelper.initEmptyProjectFiles(targetProjDir, cleanName, engine);
   currentProjectDir = targetProjDir;
 
-  syncSharedTargetsToConfig(currentProjectDir);
-
   const list = getSavedProjects();
   if (!list.includes(targetProjDir)) {
     list.unshift(targetProjDir);
     saveSavedProjects(list);
   }
 
-  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  const projectData = getMergedProjectData(currentProjectDir);
   res.json({
     success: true,
     project: projectData,
@@ -263,15 +280,13 @@ app.post('/api/projects/switch', (req, res) => {
     runnerHelper.initEmptyProjectFiles(currentProjectDir, defaultName, 'pg');
   }
 
-  syncSharedTargetsToConfig(currentProjectDir);
-
   const list = getSavedProjects();
   if (!list.includes(currentProjectDir)) {
     list.unshift(currentProjectDir);
     saveSavedProjects(list);
   }
 
-  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  const projectData = getMergedProjectData(currentProjectDir);
   res.json({ success: true, project: projectData, savedProjects: list, currentProjectDir });
 });
 
@@ -288,9 +303,7 @@ app.post('/api/projects/delete', (req, res) => {
     currentProjectDir = list.length > 0 ? list[0] : process.cwd();
   }
 
-  syncSharedTargetsToConfig(currentProjectDir);
-
-  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  const projectData = getMergedProjectData(currentProjectDir);
   res.json({ success: true, project: projectData, savedProjects: list, currentProjectDir });
 });
 
@@ -342,7 +355,7 @@ app.post('/api/projects/save-meta', (req, res) => {
 
   fs.writeFileSync(confPath, confContent, 'utf8');
 
-  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  const projectData = getMergedProjectData(currentProjectDir);
   res.json({ success: true, project: projectData });
 });
 
@@ -410,14 +423,7 @@ app.post('/api/target/add', (req, res) => {
 
   fs.writeFileSync(confPath, cleanContent, 'utf8');
 
-  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
-  if (!projectData.config.target) projectData.config.target = {};
-  Object.keys(shared).forEach(tName => {
-    if (!projectData.config.target[tName]) {
-      projectData.config.target[tName] = shared[tName];
-    }
-  });
-
+  const projectData = getMergedProjectData(currentProjectDir);
   res.json({ success: true, project: projectData, addedTarget: name });
 });
 
@@ -465,14 +471,7 @@ app.post('/api/target/delete', (req, res) => {
     fs.writeFileSync(confPath, newLines.join('\n'), 'utf8');
   }
 
-  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
-  if (!projectData.config.target) projectData.config.target = {};
-  Object.keys(shared).forEach(tName => {
-    if (!projectData.config.target[tName]) {
-      projectData.config.target[tName] = shared[tName];
-    }
-  });
-
+  const projectData = getMergedProjectData(currentProjectDir);
   res.json({ success: true, message: `Target '${name}' deleted successfully`, project: projectData });
 });
 
@@ -528,15 +527,7 @@ wss.on('connection', (ws) => {
       });
 
       runner.on('done', (result) => {
-        const projectData = SqitchPlanParser.parseProject(currentProjectDir);
-        const shared = getSharedTargets();
-        if (!projectData.config.target) projectData.config.target = {};
-        Object.keys(shared).forEach(tName => {
-          if (!projectData.config.target[tName]) {
-            projectData.config.target[tName] = shared[tName];
-          }
-        });
-
+        const projectData = getMergedProjectData(currentProjectDir);
         ws.send(JSON.stringify({ type: 'done', data: result, project: projectData }));
       });
 
