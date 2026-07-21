@@ -71,6 +71,26 @@ app.post('/api/project/init', (req, res) => {
   res.json({ success: true, project: projectData });
 });
 
+// Set active database engine
+app.post('/api/engine/set', (req, res) => {
+  const { engine } = req.body;
+  if (!engine) return res.status(400).json({ success: false, error: 'Engine name is required' });
+
+  const confPath = path.join(currentProjectDir, 'sqitch.conf');
+  let content = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf8') : '[core]\n';
+
+  if (content.includes('engine =')) {
+    content = content.replace(/engine\s*=\s*[a-zA-Z0-9_\-]+/g, `engine = ${engine}`);
+  } else {
+    content = content.replace('[core]', `[core]\n  engine = ${engine}`);
+  }
+
+  fs.writeFileSync(confPath, content, 'utf8');
+
+  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  res.json({ success: true, project: projectData });
+});
+
 // Read SQL script files for a change
 app.get('/api/change/files', (req, res) => {
   const { name } = req.query;
@@ -127,13 +147,18 @@ app.post('/api/change/add', (req, res) => {
   runner.run('add', args, currentProjectDir);
 });
 
-// Add new target
+// Add new target or engine connection
 app.post('/api/target/add', (req, res) => {
-  const { name, uri } = req.body;
+  const { name, uri, engine } = req.body;
   if (!name || !uri) return res.status(400).json({ success: false, error: 'Target name and URI are required' });
 
   const confPath = path.join(currentProjectDir, 'sqitch.conf');
-  const targetBlock = `\n[target "${name}"]\n  uri = ${uri}\n`;
+  let targetBlock = `\n[target "${name}"]\n  uri = ${uri}\n`;
+
+  if (engine) {
+    targetBlock += `\n[engine "${engine}"]\n  target = ${name}\n`;
+  }
+
   fs.appendFileSync(confPath, targetBlock, 'utf8');
 
   const projectData = SqitchPlanParser.parseProject(currentProjectDir);

@@ -34,8 +34,25 @@
     </div>
 
     <div class="header-actions">
+      <!-- Database Engine Switcher -->
+      <div class="db-engine-selector">
+        <label><i class="ri-database-line"></i> Active DB Engine:</label>
+        <select id="dbEngineSelect" title="Select Database Engine">
+          <option value="pg">PostgreSQL (pg)</option>
+          <option value="mysql">MySQL / MariaDB</option>
+          <option value="sqlite">SQLite</option>
+          <option value="oracle">Oracle</option>
+          <option value="snowflake">Snowflake</option>
+          <option value="cockroach">CockroachDB</option>
+          <option value="firebird">Firebird</option>
+          <option value="vertica">Vertica</option>
+          <option value="exasol">Exasol</option>
+        </select>
+      </div>
+
+      <!-- Execution Mode Selector -->
       <div class="mode-selector">
-        <label><i class="ri-cpu-line"></i> Engine Mode:</label>
+        <label><i class="ri-cpu-line"></i> Execution Mode:</label>
         <select id="modeSelect">
           <option value="auto">Auto (Detect)</option>
           <option value="native">Native CLI</option>
@@ -44,13 +61,14 @@
         </select>
       </div>
 
+      <!-- Target DB Selector -->
       <div class="target-selector">
-        <label><i class="ri-database-2-line"></i> Target DB:</label>
+        <label><i class="ri-server-line"></i> Target DB:</label>
         <select id="targetSelect">
           <option value="">Default Target</option>
         </select>
-        <button class="btn btn-icon btn-secondary" id="btnAddTarget" title="Add New Target">
-          <i class="ri-add-line"></i>
+        <button class="btn btn-icon btn-secondary" id="btnAddTarget" title="Add Database Target / Connection">
+          <i class="ri-add-line"></i> Add DB Target
         </button>
       </div>
 
@@ -73,8 +91,8 @@
             <span class="valueHighlight" id="infoProjectName">-</span>
           </div>
           <div class="info-row">
-            <span class="label">Engine:</span>
-            <span class="badge badge-engine" id="infoEngine">-</span>
+            <span class="label">Current Engine:</span>
+            <span class="badge badge-engine" id="infoEngine">PG</span>
           </div>
           <div class="info-row">
             <span class="label">Total Changes:</span>
@@ -244,28 +262,67 @@
     </div>
   </div>
 
-  <!-- MODAL: ADD TARGET -->
+  <!-- MODAL: ADD DATABASE TARGET / CONNECTION -->
   <div class="modal-backdrop" id="modalAddTarget">
-    <div class="modal-card">
+    <div class="modal-card modal-large">
       <div class="modal-header">
-        <h3><i class="ri-database-2-line"></i> Add Database Target</h3>
+        <h3><i class="ri-database-2-line"></i> Add Database Target Connection</h3>
         <button class="modal-close" id="btnCloseModalTarget">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label>Target Name <span class="required">*</span></label>
-          <input type="text" id="newTargetName" placeholder="e.g. dev, staging, production" required>
+          <label>Database Engine <span class="required">*</span></label>
+          <select id="targetEngineSelect">
+            <option value="pg">PostgreSQL (pg)</option>
+            <option value="mysql">MySQL / MariaDB</option>
+            <option value="sqlite">SQLite</option>
+            <option value="oracle">Oracle</option>
+            <option value="snowflake">Snowflake</option>
+            <option value="cockroach">CockroachDB</option>
+            <option value="firebird">Firebird</option>
+            <option value="vertica">Vertica</option>
+            <option value="exasol">Exasol</option>
+          </select>
         </div>
+
         <div class="form-group">
-          <label>Target Connection URI <span class="required">*</span></label>
+          <label>Target Name <span class="required">*</span></label>
+          <input type="text" id="newTargetName" placeholder="e.g. dev, staging, prod, my_postgres_db" required>
+        </div>
+
+        <div class="connection-builder-grid">
+          <div class="form-group">
+            <label>Host</label>
+            <input type="text" id="targetHost" placeholder="localhost">
+          </div>
+          <div class="form-group">
+            <label>Port</label>
+            <input type="text" id="targetPort" placeholder="5432">
+          </div>
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="targetUser" placeholder="postgres / root">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="targetPass" placeholder="••••••••">
+          </div>
+          <div class="form-group full-width">
+            <label>Database Name / File Path</label>
+            <input type="text" id="targetDbName" placeholder="app_db or path/to/sqlite.db">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Generated Target Connection URI <span class="required">*</span></label>
           <input type="text" id="newTargetUri" placeholder="e.g. db:pg://user:pass@localhost:5432/dbname" required>
-          <small>Examples: <code>db:pg://user:pass@host:5432/db</code>, <code>db:sqlite:myapp.db</code>, <code>db:mysql://user:pass@host:3306/db</code></small>
+          <small>URI format: <code>db:&lt;engine&gt;://[user[:pass]@]host[:port]/dbname</code></small>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="btnCancelModalTarget">Cancel</button>
         <button class="btn btn-primary" id="btnSubmitAddTarget">
-          <i class="ri-save-line"></i> Save Target
+          <i class="ri-save-line"></i> Add Database Target
         </button>
       </div>
     </div>

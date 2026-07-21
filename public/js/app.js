@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   // UI Elements
   const elCurrentPathText = document.getElementById('currentPathText');
+  const elDbEngineSelect = document.getElementById('dbEngineSelect');
   const elModeSelect = document.getElementById('modeSelect');
   const elTargetSelect = document.getElementById('targetSelect');
   const elEnvStatusBadge = document.getElementById('envStatusBadge');
@@ -36,6 +37,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // Modals
   const modalAddChange = document.getElementById('modalAddChange');
   const modalAddTarget = document.getElementById('modalAddTarget');
+
+  // Target Builder Elements
+  const targetEngineSelect = document.getElementById('targetEngineSelect');
+  const targetHost = document.getElementById('targetHost');
+  const targetPort = document.getElementById('targetPort');
+  const targetUser = document.getElementById('targetUser');
+  const targetPass = document.getElementById('targetPass');
+  const targetDbName = document.getElementById('targetDbName');
+  const newTargetUri = document.getElementById('newTargetUri');
 
   // State
   let currentProject = null;
@@ -141,6 +151,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Engine Switcher
+  elDbEngineSelect.addEventListener('change', async () => {
+    const selectedEngine = elDbEngineSelect.value;
+    try {
+      const res = await fetch('/api/engine/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ engine: selectedEngine })
+      });
+      const data = await res.json();
+      if (data.success) {
+        renderProject(data.project);
+        appendTerminalLog({ type: 'success', text: `Switched active database engine to '${selectedEngine.toUpperCase()}'` });
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+
   // -------------------------------------------------------------
   // RENDERING LOGIC
   // -------------------------------------------------------------
@@ -153,6 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const config = project.config || {};
     const engine = config.core?.engine || 'pg';
     elInfoEngine.textContent = engine.toUpperCase();
+    elDbEngineSelect.value = engine;
 
     const changes = project.changes || [];
     const tags = project.tags || [];
@@ -255,7 +285,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // -------------------------------------------------------------
   window.selectChange = function(changeName) {
     selectChangeForEditor(changeName);
-    // Switch tab to SQL Editor
     document.querySelector('.tab-btn[data-tab="sql-editor"]').click();
   };
 
@@ -299,7 +328,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Script tabs (deploy / revert / verify)
   document.querySelectorAll('.script-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.script-tab').forEach(t => t.classList.remove('active'));
@@ -311,7 +339,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Main UI Tabs (Timeline / SQL Editor)
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -355,7 +382,6 @@ document.addEventListener('DOMContentLoaded', () => {
     sendCommand('deploy', [changeName]);
   };
 
-  // Search filter
   elSearchInput.addEventListener('input', () => {
     if (currentProject) renderPlanTable(currentProject.changes);
   });
@@ -392,7 +418,6 @@ document.addEventListener('DOMContentLoaded', () => {
         modalAddChange.classList.remove('show');
         renderProject(data.project);
         appendTerminalLog({ type: 'success', text: `Created new migration change: ${name}` });
-        // Select newly created change
         selectChangeForEditor(name);
       }
     } catch (e) {
@@ -401,28 +426,62 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // -------------------------------------------------------------
-  // MODAL HANDLERS: ADD TARGET
+  // MODAL HANDLERS & URI BUILDER: ADD TARGET
   // -------------------------------------------------------------
-  btnAddTarget.addEventListener('click', () => modalAddTarget.classList.add('show'));
+  btnAddTarget.addEventListener('click', () => {
+    targetEngineSelect.value = elDbEngineSelect.value;
+    updateGeneratedUri();
+    modalAddTarget.classList.add('show');
+  });
+
   document.getElementById('btnCloseModalTarget').addEventListener('click', () => modalAddTarget.classList.remove('show'));
   document.getElementById('btnCancelModalTarget').addEventListener('click', () => modalAddTarget.classList.remove('show'));
 
+  function updateGeneratedUri() {
+    const eng = targetEngineSelect.value;
+    const host = targetHost.value.trim() || 'localhost';
+    const port = targetPort.value.trim() || (eng === 'mysql' ? '3306' : (eng === 'pg' ? '5432' : ''));
+    const user = targetUser.value.trim();
+    const pass = targetPass.value.trim();
+    const db = targetDbName.value.trim() || 'app_db';
+
+    let userPass = '';
+    if (user) {
+      userPass = pass ? `${user}:${pass}@` : `${user}@`;
+    }
+
+    let portStr = port ? `:${port}` : '';
+
+    if (eng === 'sqlite') {
+      newTargetUri.value = `db:sqlite:${db || 'sqlite.db'}`;
+    } else {
+      newTargetUri.value = `db:${eng}://${userPass}${host}${portStr}/${db}`;
+    }
+  }
+
+  [targetEngineSelect, targetHost, targetPort, targetUser, targetPass, targetDbName].forEach(input => {
+    input.addEventListener('input', updateGeneratedUri);
+    input.addEventListener('change', updateGeneratedUri);
+  });
+
   document.getElementById('btnSubmitAddTarget').addEventListener('click', async () => {
     const name = document.getElementById('newTargetName').value.trim();
-    const uri = document.getElementById('newTargetUri').value.trim();
+    const uri = newTargetUri.value.trim();
+    const engine = targetEngineSelect.value;
+
     if (!name || !uri) return alert('Target name and URI are required!');
 
     try {
       const res = await fetch('/api/target/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, uri })
+        body: JSON.stringify({ name, uri, engine })
       });
       const data = await res.json();
       if (data.success) {
         modalAddTarget.classList.remove('show');
         renderProject(data.project);
-        appendTerminalLog({ type: 'success', text: `Added target '${name}': ${uri}` });
+        appendTerminalLog({ type: 'success', text: `Added DB Target '${name}' (${engine.toUpperCase()}): ${uri}` });
       }
     } catch (e) {
       alert(e.message);

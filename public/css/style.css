@@ -149,7 +149,7 @@ body.dark-theme {
   gap: 16px;
 }
 
-.mode-selector, .target-selector {
+.db-engine-selector, .mode-selector, .target-selector {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -723,6 +723,10 @@ select:hover {
   overflow: hidden;
 }
 
+.modal-card.modal-large {
+  width: 620px;
+}
+
 .modal-header {
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
@@ -756,6 +760,20 @@ select:hover {
   gap: 16px;
 }
 
+.connection-builder-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: var(--bg-dark);
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.connection-builder-grid .full-width {
+  grid-column: span 2;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -768,7 +786,7 @@ select:hover {
   color: var(--text-muted);
 }
 
-.form-group input {
+.form-group input, .form-group select {
   background: var(--bg-dark);
   border: 1px solid var(--border-color);
   color: var(--text-main);
@@ -777,7 +795,7 @@ select:hover {
   font-size: 13px;
   outline: none;
 }
-.form-group input:focus {
+.form-group input:focus, .form-group select:focus {
   border-color: var(--primary);
 }
 
