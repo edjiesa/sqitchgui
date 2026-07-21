@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnStatus = document.getElementById('btnStatus');
   const btnAddChange = document.getElementById('btnAddChange');
   const btnAddTarget = document.getElementById('btnAddTarget');
+  const btnDeleteTarget = document.getElementById('btnDeleteTarget');
   const btnTestTarget = document.getElementById('btnTestTarget');
 
   // Modals
@@ -170,6 +171,36 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.success) {
         renderProject(data.project);
         appendTerminalLog({ type: 'success', text: `Switched active database engine to '${selectedEngine.toUpperCase()}'` });
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+
+  // Delete Target Handler
+  btnDeleteTarget.addEventListener('click', async () => {
+    const selectedTarget = elTargetSelect.value;
+    if (!selectedTarget) {
+      return alert('Please select a specific Target DB from the dropdown to delete!');
+    }
+
+    if (!confirm(`Are you sure you want to delete DB target '${selectedTarget}' from sqitch.conf?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/target/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: selectedTarget })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        renderProject(data.project);
+        appendTerminalLog({ type: 'success', text: `Deleted target '${selectedTarget}' from sqitch.conf` });
+      } else {
+        alert(data.error || 'Failed to delete target');
       }
     } catch (e) {
       alert(e.message);
@@ -501,10 +532,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function cleanTargetUri() {
     let raw = newTargetUri.value.trim();
-    // Auto-clean doubled db:pg:// or concatenated URIs if user pasted repeatedly
     const matches = raw.match(/(db:[a-z0-9]+:\/\/[^\s]+)/gi);
     if (matches && matches.length > 0) {
-      newTargetUri.value = matches[matches.length - 1]; // Use last clean match
+      newTargetUri.value = matches[matches.length - 1];
     }
   }
 

@@ -360,6 +360,16 @@ select:hover {
   background: var(--bg-hover);
 }
 
+.btn-danger-outline {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+.btn-danger-outline:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: var(--danger);
+}
+
 .btn-success {
   background: var(--success);
   color: #052419;

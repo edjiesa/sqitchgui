@@ -165,24 +165,67 @@ app.post('/api/target/add', (req, res) => {
   res.json({ success: true, project: projectData });
 });
 
+// Delete database target from sqitch.conf
+app.post('/api/target/delete', (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ success: false, error: 'Target name is required' });
+
+  const confPath = path.join(currentProjectDir, 'sqitch.conf');
+  if (!fs.existsSync(confPath)) {
+    return res.status(400).json({ success: false, error: 'sqitch.conf file not found' });
+  }
+
+  let content = fs.readFileSync(confPath, 'utf8');
+  const lines = content.split(/\r?\n/);
+  const newLines = [];
+  let inTargetSection = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      if (trimmed === `[target "${name}"]` || trimmed === `[target '${name}']`) {
+        inTargetSection = true;
+        continue;
+      } else {
+        inTargetSection = false;
+      }
+    }
+
+    if (!inTargetSection) {
+      newLines.push(line);
+    }
+  }
+
+  fs.writeFileSync(confPath, newLines.join('\n'), 'utf8');
+
+  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  res.json({ success: true, message: `Target '${name}' deleted successfully`, project: projectData });
+});
+
 // Test Database Connection Endpoint
 app.post('/api/target/test', (req, res) => {
   const { target, mode = 'auto' } = req.body;
   const runner = new SqitchRunner({ mode, target });
 
   let outputText = '';
-  let isSuccess = false;
 
   runner.on('log', (logEntry) => {
     outputText += `${logEntry.text}\n`;
   });
 
   runner.on('done', (result) => {
-    isSuccess = result.success;
+    const isConnected = outputText.includes('# On database') || 
+                        outputText.includes('No changes deployed') || 
+                        outputText.includes('Nothing to deploy') || 
+                        result.success;
+
     res.json({
-      success: isSuccess,
+      success: isConnected,
       target: target || 'default',
-      output: outputText
+      output: outputText,
+      statusMessage: isConnected ? 'Database connection successful!' : 'Database connection failed.'
     });
   });
 
