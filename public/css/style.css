@@ -63,32 +63,36 @@ body.dark-theme {
  * HEADER
  * ------------------------------------------------------------- */
 .app-header {
-  height: 60px;
+  min-height: 60px;
+  height: auto;
   background: var(--glass-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 8px 16px;
+  gap: 12px;
   z-index: 100;
+  flex-wrap: wrap;
 }
 
 .logo-group {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .logo-icon {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   background: linear-gradient(135deg, var(--primary), var(--info));
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: 18px;
   color: #fff;
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
 }
@@ -100,7 +104,7 @@ body.dark-theme {
 }
 
 .logo-text h1 {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.5px;
 }
@@ -116,25 +120,29 @@ body.dark-theme {
 }
 
 .header-center {
-  flex: 1;
   display: flex;
+  align-items: center;
   justify-content: center;
-  max-width: 400px;
-  margin: 0 20px;
+  max-width: 480px;
+  flex-shrink: 0;
 }
 
 .project-path-box {
   background: var(--bg-panel);
   border: 1px solid var(--border-color);
-  padding: 6px 14px;
+  padding: 5px 12px;
   border-radius: 20px;
   font-size: 12px;
   color: var(--text-muted);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
+  white-space: nowrap;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .project-path-box:hover {
@@ -146,7 +154,9 @@ body.dark-theme {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .db-engine-selector, .mode-selector, .target-selector {
@@ -157,11 +167,18 @@ body.dark-theme {
   color: var(--text-muted);
 }
 
+.target-selector {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
 select {
   background: var(--bg-panel);
   color: var(--text-main);
   border: 1px solid var(--border-color);
-  padding: 6px 10px;
+  padding: 5px 10px;
   border-radius: 6px;
   font-size: 12px;
   outline: none;
@@ -169,31 +186,6 @@ select {
 }
 select:hover {
   border-color: var(--primary);
-}
-
-.env-status-badge {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.badge-simulated {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--warning);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-.badge-native {
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--success);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-.badge-docker {
-  background: rgba(56, 189, 248, 0.15);
-  color: var(--primary);
-  border: 1px solid rgba(56, 189, 248, 0.3);
 }
 
 .badge-db-status {
@@ -323,8 +315,9 @@ select:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .btn-sm {
@@ -361,13 +354,14 @@ select:hover {
 }
 
 .btn-danger-outline {
-  background: transparent;
+  background: rgba(239, 68, 68, 0.1);
   color: var(--danger);
   border: 1px solid rgba(239, 68, 68, 0.4);
 }
 .btn-danger-outline:hover {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(239, 68, 68, 0.25);
   border-color: var(--danger);
+  color: #fff;
 }
 
 .btn-success {
@@ -773,7 +767,7 @@ select:hover {
 .proj-path-text {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text-main);
+  color: var(--text-muted);
   word-break: break-all;
 }
 
@@ -814,7 +808,7 @@ select:hover {
 }
 
 .modal-card.modal-large {
-  width: 620px;
+  width: 650px;
 }
 
 .modal-header {
@@ -848,6 +842,8 @@ select:hover {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  max-height: 80vh;
+  overflow-y: auto;
 }
 
 .connection-builder-grid {
