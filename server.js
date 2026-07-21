@@ -239,7 +239,6 @@ app.post('/api/plan/toggle-change', (req, res) => {
       const activeMatch = trimmed.match(/^([a-zA-Z0-9_\-\.\/]+)(?:\s+\[([^\]]+)\])?(?:\s+([0-9T:Z\-]+))?/);
       if (activeMatch && activeMatch[1] === name) {
         if (!enable) {
-          // Disable by adding # at the beginning
           return `# ${line}`;
         }
       }
@@ -248,7 +247,6 @@ app.post('/api/plan/toggle-change', (req, res) => {
       const commentedMatch = trimmed.match(/^#\s*([a-zA-Z0-9_\-\.\/]+)(?:\s+\[([^\]]+)\])?(?:\s+([0-9T:Z\-]+))?/);
       if (commentedMatch && commentedMatch[1] === name) {
         if (enable) {
-          // Enable by stripping leading #
           return line.replace(/^#\s*/, '');
         }
       }
@@ -261,6 +259,56 @@ app.post('/api/plan/toggle-change', (req, res) => {
 
     const projectData = getMergedProjectData(currentProjectDir);
     res.json({ success: true, project: projectData, name, enable });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete a change entry from sqitch.plan (and optionally associated SQL files)
+app.post('/api/plan/delete-change', (req, res) => {
+  try {
+    const { name, deleteSqlFiles = false } = req.body;
+    if (!name) return res.status(400).json({ success: false, error: 'Change name is required' });
+
+    const planPath = path.join(currentProjectDir, 'sqitch.plan');
+    if (!fs.existsSync(planPath)) {
+      return res.status(400).json({ success: false, error: 'sqitch.plan file not found' });
+    }
+
+    let content = fs.readFileSync(planPath, 'utf8');
+    const lines = content.split(/\r?\n/);
+    const newLines = lines.filter(line => {
+      const trimmed = line.trim();
+      
+      // Match active change line
+      const activeMatch = trimmed.match(/^([a-zA-Z0-9_\-\.\/]+)(?:\s+\[([^\]]+)\])?(?:\s+([0-9T:Z\-]+))?/);
+      if (activeMatch && activeMatch[1] === name) {
+        return false;
+      }
+
+      // Match disabled commented change line (# name ...)
+      const commentedMatch = trimmed.match(/^#\s*([a-zA-Z0-9_\-\.\/]+)(?:\s+\[([^\]]+)\])?(?:\s+([0-9T:Z\-]+))?/);
+      if (commentedMatch && commentedMatch[1] === name) {
+        return false;
+      }
+
+      return true;
+    });
+
+    fs.writeFileSync(planPath, newLines.join('\n'), 'utf8');
+    SqitchPlanParser.sanitizePlanFile(planPath);
+
+    if (deleteSqlFiles) {
+      ['deploy', 'revert', 'verify'].forEach(type => {
+        const filePath = path.join(currentProjectDir, type, `${name}.sql`);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      });
+    }
+
+    const projectData = getMergedProjectData(currentProjectDir);
+    res.json({ success: true, project: projectData, name });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

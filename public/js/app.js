@@ -175,6 +175,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  // Delete Change from sqitch.plan
+  window.deleteChange = async function(changeName) {
+    if (!confirm(`Apakah Anda yakin ingin menghapus change '${changeName}' dari sqitch.plan?`)) {
+      return;
+    }
+
+    const deleteFiles = confirm(`Apakah Anda juga ingin menghapus berkas SQL (${changeName}.sql) di folder deploy, revert, dan verify?`);
+
+    appendTerminalLog({ type: 'info', text: `Menghapus change '${changeName}' dari sqitch.plan...` });
+
+    try {
+      const res = await fetch('/api/plan/delete-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: changeName, deleteSqlFiles: deleteFiles })
+      });
+      const data = await res.json();
+      if (data.success) {
+        renderProject(data.project);
+        appendTerminalLog({ type: 'success', text: `Berhasil menghapus change '${changeName}' dari sqitch.plan` });
+      } else {
+        alert(data.error || 'Gagal menghapus change');
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
   // -------------------------------------------------------------
   // API FETCHERS & PROJECT MANAGER
   // -------------------------------------------------------------
@@ -764,6 +792,9 @@ document.addEventListener('DOMContentLoaded', () => {
                    <button class="btn btn-success btn-xs" onclick="window.deploySingleChange('${item.name}')" title="Jalankan change ini (sqitch deploy --to-change ${item.name})">
                      <i class="ri-play-line"></i>
                    </button>`}
+              <button class="btn btn-danger-outline btn-xs" onclick="window.deleteChange('${item.name}')" title="Hapus change ini dari sqitch.plan">
+                <i class="ri-delete-bin-line"></i>
+              </button>
             </div>
           </td>
         </tr>
