@@ -19,11 +19,58 @@ const BASE_PROJECT_ROOT = process.platform === 'win32' ? 'C:\\opt\\sqitchgui' : 
 
 // Saved projects storage file
 const PROJECTS_STORE = path.join(__dirname, 'saved_projects.json');
+// Shared Target DB registry across all projects
+const SHARED_TARGETS_STORE = path.join(__dirname, 'shared_targets.json');
 
 function getProjectRootDir() {
   if (fs.existsSync('/opt/sqitchgui')) return '/opt/sqitchgui';
   if (fs.existsSync('C:\\opt\\sqitchgui')) return 'C:\\opt\\sqitchgui';
   return BASE_PROJECT_ROOT;
+}
+
+function getSharedTargets() {
+  if (fs.existsSync(SHARED_TARGETS_STORE)) {
+    try {
+      return JSON.parse(fs.readFileSync(SHARED_TARGETS_STORE, 'utf8'));
+    } catch (e) {
+      return {};
+    }
+  }
+  return {};
+}
+
+function saveSharedTargets(targetsObj) {
+  try {
+    fs.writeFileSync(SHARED_TARGETS_STORE, JSON.stringify(targetsObj, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Failed to save shared targets:', e);
+  }
+}
+
+// Sync shared target definitions into a project's sqitch.conf
+function syncSharedTargetsToConfig(projectDir) {
+  const confPath = path.join(projectDir, 'sqitch.conf');
+  const shared = getSharedTargets();
+  if (Object.keys(shared).length === 0) return;
+
+  let content = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf8') : '[core]\n  engine = pg\n';
+  let modified = false;
+
+  Object.keys(shared).forEach(tName => {
+    const tData = shared[tName];
+    const uri = typeof tData === 'object' ? tData.uri : tData;
+
+    // Check if target is in sqitch.conf
+    const hasTarget = content.includes(`[target "${tName}"]`) || content.includes(`[target '${tName}']`) || content.includes(`[target ${tName}]`);
+    if (!hasTarget && uri) {
+      content = content.trim() + `\n\n[target "${tName}"]\n  uri = ${uri}\n`;
+      modified = true;
+    }
+  });
+
+  if (modified) {
+    fs.writeFileSync(confPath, content, 'utf8');
+  }
 }
 
 function scanProjectsInRootDir(rootDir) {
@@ -84,6 +131,7 @@ if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
   runnerHelper.initEmptyProjectFiles(currentProjectDir, 'sqitchgui', 'pg');
 }
 saveSavedProjects(getSavedProjects());
+syncSharedTargetsToConfig(currentProjectDir);
 
 // -------------------------------------------------------------
 // REST API ROUTES
@@ -100,10 +148,21 @@ app.get('/api/env', (req, res) => {
   });
 });
 
-// Get project details, saved projects, and metadata directly from sqitch.plan inside the active project directory
+// Get project details, merged with shared target DBs
 app.get('/api/project', (req, res) => {
   try {
+    syncSharedTargetsToConfig(currentProjectDir);
     const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+    const sharedTargets = getSharedTargets();
+
+    // Merge shared targets into project config target object
+    if (!projectData.config.target) projectData.config.target = {};
+    Object.keys(sharedTargets).forEach(tName => {
+      if (!projectData.config.target[tName]) {
+        projectData.config.target[tName] = sharedTargets[tName];
+      }
+    });
+
     const savedProjects = getSavedProjects();
     res.json({
       success: true,
@@ -146,7 +205,7 @@ app.get('/api/projects', (req, res) => {
   });
 });
 
-// Create New Project in /opt/sqitchgui/<projectName> with a clean empty sqitch.plan
+// Create New Project in /opt/sqitchgui/<projectName>
 app.post('/api/projects/create', (req, res) => {
   const { name, engine = 'pg' } = req.body;
   if (!name || !name.trim()) {
@@ -156,7 +215,6 @@ app.post('/api/projects/create', (req, res) => {
   const cleanName = name.trim().replace(/[^a-zA-Z0-9_\-]/g, '_');
   const rootDir = getProjectRootDir();
   
-  // Ensure root directory exists
   if (!fs.existsSync(rootDir)) {
     try {
       fs.mkdirSync(rootDir, { recursive: true });
@@ -170,10 +228,10 @@ app.post('/api/projects/create', (req, res) => {
     fs.mkdirSync(targetProjDir, { recursive: true });
   }
 
-  // Initialize clean empty project files in /opt/sqitchgui/<cleanName>
   runnerHelper.initEmptyProjectFiles(targetProjDir, cleanName, engine);
-
   currentProjectDir = targetProjDir;
+
+  syncSharedTargetsToConfig(currentProjectDir);
 
   const list = getSavedProjects();
   if (!list.includes(targetProjDir)) {
@@ -200,13 +258,13 @@ app.post('/api/projects/switch', (req, res) => {
 
   currentProjectDir = path.resolve(newPath);
 
-  // Initialize empty project files ONLY if sqitch.plan is missing in the chosen directory
   if (!fs.existsSync(path.join(currentProjectDir, 'sqitch.plan'))) {
     const defaultName = path.basename(currentProjectDir) || 'app_db';
     runnerHelper.initEmptyProjectFiles(currentProjectDir, defaultName, 'pg');
   }
 
-  // Update saved list
+  syncSharedTargetsToConfig(currentProjectDir);
+
   const list = getSavedProjects();
   if (!list.includes(currentProjectDir)) {
     list.unshift(currentProjectDir);
@@ -226,22 +284,22 @@ app.post('/api/projects/delete', (req, res) => {
   list = list.filter(p => path.resolve(p) !== path.resolve(targetPath));
   saveSavedProjects(list);
 
-  // If deleted current project, switch to first available or cwd
   if (path.resolve(currentProjectDir) === path.resolve(targetPath)) {
     currentProjectDir = list.length > 0 ? list[0] : process.cwd();
   }
+
+  syncSharedTargetsToConfig(currentProjectDir);
 
   const projectData = SqitchPlanParser.parseProject(currentProjectDir);
   res.json({ success: true, project: projectData, savedProjects: list, currentProjectDir });
 });
 
-// Save Project Meta (Name, URI) in sqitch.plan AND sqitch.conf locally inside project directory (/repo in Docker)
+// Save Project Meta (Name, URI) in sqitch.plan AND sqitch.conf locally
 app.post('/api/projects/save-meta', (req, res) => {
   const { name, uri } = req.body;
   const planPath = path.join(currentProjectDir, 'sqitch.plan');
   const confPath = path.join(currentProjectDir, 'sqitch.conf');
 
-  // 1. Save to sqitch.plan (%project=, %uri=)
   if (fs.existsSync(planPath)) {
     let planContent = fs.readFileSync(planPath, 'utf8');
 
@@ -264,7 +322,6 @@ app.post('/api/projects/save-meta', (req, res) => {
     fs.writeFileSync(planPath, planContent, 'utf8');
   }
 
-  // 2. Save to sqitch.conf ([core] uri =, [core] project =) locally
   let confContent = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf8') : '[core]\n  engine = pg\n';
 
   if (uri) {
@@ -289,99 +346,20 @@ app.post('/api/projects/save-meta', (req, res) => {
   res.json({ success: true, project: projectData });
 });
 
-// Initialize new sqitch project
-app.post('/api/project/init', (req, res) => {
-  const { name = 'app_db', engine = 'pg' } = req.body;
-  runnerHelper.initEmptyProjectFiles(currentProjectDir, name, engine);
-  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
-  res.json({ success: true, project: projectData });
-});
-
-// Set active database engine
-app.post('/api/engine/set', (req, res) => {
-  const { engine } = req.body;
-  if (!engine) return res.status(400).json({ success: false, error: 'Engine name is required' });
-
-  const confPath = path.join(currentProjectDir, 'sqitch.conf');
-  let content = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf8') : '[core]\n';
-
-  if (content.includes('engine =')) {
-    content = content.replace(/engine\s*=\s*[a-zA-Z0-9_\-]+/g, `engine = ${engine}`);
-  } else {
-    content = content.replace('[core]', `[core]\n  engine = ${engine}`);
-  }
-
-  fs.writeFileSync(confPath, content, 'utf8');
-
-  const projectData = SqitchPlanParser.parseProject(currentProjectDir);
-  res.json({ success: true, project: projectData });
-});
-
-// Read SQL script files for a change
-app.get('/api/change/files', (req, res) => {
-  const { name } = req.query;
-  if (!name) return res.status(400).json({ success: false, error: 'Change name required' });
-
-  const files = {
-    deploy: '',
-    revert: '',
-    verify: ''
-  };
-
-  ['deploy', 'revert', 'verify'].forEach(type => {
-    const filePath = path.join(currentProjectDir, type, `${name}.sql`);
-    if (fs.existsSync(filePath)) {
-      files[type] = fs.readFileSync(filePath, 'utf8');
-    }
-  });
-
-  res.json({ success: true, name, files });
-});
-
-// Save SQL script file for a change
-app.post('/api/change/files', (req, res) => {
-  const { name, type, content } = req.body;
-  if (!name || !type || !['deploy', 'revert', 'verify'].includes(type)) {
-    return res.status(400).json({ success: false, error: 'Invalid parameters.' });
-  }
-
-  const dirPath = path.join(currentProjectDir, type);
-  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
-
-  const filePath = path.join(dirPath, `${name}.sql`);
-  fs.writeFileSync(filePath, content, 'utf8');
-
-  res.json({ success: true, message: `Updated ${type}/${name}.sql` });
-});
-
-// Add new change
-app.post('/api/change/add', (req, res) => {
-  const { name, requires = [], conflicts = [], note = '', mode = 'auto' } = req.body;
-  if (!name) return res.status(400).json({ success: false, error: 'Change name is required' });
-
-  const args = [name];
-  requires.forEach(r => args.push(`-r=${r}`));
-  conflicts.forEach(c => args.push(`-c=${c}`));
-  if (note) args.push(`-n=${note}`);
-
-  const runner = new SqitchRunner({ mode });
-  runner.on('done', () => {
-    const projectData = SqitchPlanParser.parseProject(currentProjectDir);
-    res.json({ success: true, project: projectData });
-  });
-
-  runner.run('add', args, currentProjectDir);
-});
-
-// Add or Update target in sqitch.conf
+// Add or Update Target DB in shared registry AND current project sqitch.conf
 app.post('/api/target/add', (req, res) => {
   const { name, uri, engine } = req.body;
   if (!name || !uri) return res.status(400).json({ success: false, error: 'Target name and URI are required' });
 
+  // 1. Save to shared target DB registry
+  const shared = getSharedTargets();
+  shared[name] = { uri, engine: engine || 'pg' };
+  saveSharedTargets(shared);
+
+  // 2. Write/Sync into active project's sqitch.conf
   const confPath = path.join(currentProjectDir, 'sqitch.conf');
   let content = fs.existsSync(confPath) ? fs.readFileSync(confPath, 'utf8') : '[core]\n  engine = pg\n';
 
-  // Parse sections and remove old target section with same name if it exists
   const lines = content.split(/\r?\n/);
   const newLines = [];
   let inTargetSection = false;
@@ -412,7 +390,7 @@ app.post('/api/target/add', (req, res) => {
   // Add target section
   cleanContent += `\n\n[target "${name}"]\n  uri = ${uri}\n`;
 
-  // Update or set engine target
+  // Update engine target
   const activeEng = engine || 'pg';
   if (cleanContent.includes(`[engine "${activeEng}"]`)) {
     if (cleanContent.match(new RegExp(`\\[engine "${activeEng}"\\][^\\[]*target\\s*=`, 'i'))) {
@@ -433,56 +411,79 @@ app.post('/api/target/add', (req, res) => {
   fs.writeFileSync(confPath, cleanContent, 'utf8');
 
   const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  if (!projectData.config.target) projectData.config.target = {};
+  Object.keys(shared).forEach(tName => {
+    if (!projectData.config.target[tName]) {
+      projectData.config.target[tName] = shared[tName];
+    }
+  });
+
   res.json({ success: true, project: projectData, addedTarget: name });
 });
 
-// Delete database target from sqitch.conf
+// Delete database target from shared registry AND sqitch.conf
 app.post('/api/target/delete', (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ success: false, error: 'Target name is required' });
 
+  // 1. Remove from shared targets store
+  const shared = getSharedTargets();
+  if (shared[name]) {
+    delete shared[name];
+    saveSharedTargets(shared);
+  }
+
+  // 2. Remove from active project sqitch.conf
   const confPath = path.join(currentProjectDir, 'sqitch.conf');
-  if (!fs.existsSync(confPath)) {
-    return res.status(400).json({ success: false, error: 'sqitch.conf file not found' });
-  }
+  if (fs.existsSync(confPath)) {
+    let content = fs.readFileSync(confPath, 'utf8');
+    const lines = content.split(/\r?\n/);
+    const newLines = [];
+    let inTargetSection = false;
 
-  let content = fs.readFileSync(confPath, 'utf8');
-  const lines = content.split(/\r?\n/);
-  const newLines = [];
-  let inTargetSection = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-      const tMatch = trimmed.match(/^\[\s*target\s+(?:"([^"]*)"|'([^']*)'|([^\s\]]+))\s*\]$/i);
-      if (tMatch) {
-        const foundName = tMatch[1] || tMatch[2] || tMatch[3];
-        if (foundName === name) {
-          inTargetSection = true;
-          continue;
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        const tMatch = trimmed.match(/^\[\s*target\s+(?:"([^"]*)"|'([^']*)'|([^\s\]]+))\s*\]$/i);
+        if (tMatch) {
+          const foundName = tMatch[1] || tMatch[2] || tMatch[3];
+          if (foundName === name) {
+            inTargetSection = true;
+            continue;
+          }
         }
+        inTargetSection = false;
       }
-      inTargetSection = false;
+
+      if (!inTargetSection) {
+        newLines.push(line);
+      }
     }
 
-    if (!inTargetSection) {
-      newLines.push(line);
-    }
+    fs.writeFileSync(confPath, newLines.join('\n'), 'utf8');
   }
-
-  fs.writeFileSync(confPath, newLines.join('\n'), 'utf8');
 
   const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+  if (!projectData.config.target) projectData.config.target = {};
+  Object.keys(shared).forEach(tName => {
+    if (!projectData.config.target[tName]) {
+      projectData.config.target[tName] = shared[tName];
+    }
+  });
+
   res.json({ success: true, message: `Target '${name}' deleted successfully`, project: projectData });
 });
 
 // Test Database Connection Endpoint
 app.post('/api/target/test', (req, res) => {
   const { target, mode = 'auto' } = req.body;
-  const runner = new SqitchRunner({ mode, target });
 
+  // Ensure target is synced to current project's sqitch.conf before running test
+  syncSharedTargetsToConfig(currentProjectDir);
+
+  const runner = new SqitchRunner({ mode, target });
   let outputText = '';
 
   runner.on('log', (logEntry) => {
@@ -517,6 +518,9 @@ wss.on('connection', (ws) => {
 
       if (!action) return;
 
+      // Ensure target is synced to current project's sqitch.conf before running command
+      syncSharedTargetsToConfig(currentProjectDir);
+
       const runner = new SqitchRunner({ mode, target });
 
       runner.on('log', (logEntry) => {
@@ -525,6 +529,14 @@ wss.on('connection', (ws) => {
 
       runner.on('done', (result) => {
         const projectData = SqitchPlanParser.parseProject(currentProjectDir);
+        const shared = getSharedTargets();
+        if (!projectData.config.target) projectData.config.target = {};
+        Object.keys(shared).forEach(tName => {
+          if (!projectData.config.target[tName]) {
+            projectData.config.target[tName] = shared[tName];
+          }
+        });
+
         ws.send(JSON.stringify({ type: 'done', data: result, project: projectData }));
       });
 
