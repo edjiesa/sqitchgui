@@ -39,12 +39,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnStatus = document.getElementById('btnStatus');
   const btnAddChange = document.getElementById('btnAddChange');
   const btnAddTarget = document.getElementById('btnAddTarget');
+  const btnEditTarget = document.getElementById('btnEditTarget');
   const btnDeleteTarget = document.getElementById('btnDeleteTarget');
   const btnTestTarget = document.getElementById('btnTestTarget');
 
   // Modals & Project Manager
   const modalAddChange = document.getElementById('modalAddChange');
   const modalAddTarget = document.getElementById('modalAddTarget');
+  const modalTargetTitle = document.getElementById('modalTargetTitle');
   const modalProjectManager = document.getElementById('modalProjectManager');
   const btnOpenProjectManager = document.getElementById('btnOpenProjectManager');
   const btnHeaderManageProjects = document.getElementById('btnHeaderManageProjects');
@@ -487,6 +489,84 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Target DB URI Parser Helper
+  function parseTargetUri(uri) {
+    if (!uri) return {};
+    let engine = 'pg';
+    let host = 'localhost';
+    let port = '';
+    let user = '';
+    let pass = '';
+    let db = '';
+
+    const mEngine = uri.match(/^db:([a-z0-9]+):/i);
+    if (mEngine) engine = mEngine[1];
+
+    let rest = uri.replace(/^db:[a-z0-9]+:\/\//i, '');
+    if (rest.includes('@')) {
+      const parts = rest.split('@');
+      const userPass = parts[0];
+      rest = parts[1];
+      if (userPass.includes(':')) {
+        user = userPass.split(':')[0];
+        pass = userPass.split(':')[1];
+      } else {
+        user = userPass;
+      }
+    }
+
+    if (rest.includes('/')) {
+      const parts = rest.split('/');
+      const hostPort = parts[0];
+      db = parts.slice(1).join('/');
+      if (hostPort.includes(':')) {
+        host = hostPort.split(':')[0];
+        port = hostPort.split(':')[1];
+      } else {
+        host = hostPort;
+      }
+    } else {
+      if (rest.includes(':')) {
+        host = rest.split(':')[0];
+        port = rest.split(':')[1];
+      } else {
+        host = rest;
+      }
+    }
+
+    return { engine, host, port, user, pass, db };
+  }
+
+  // Edit Target Handler
+  if (btnEditTarget) {
+    btnEditTarget.addEventListener('click', () => {
+      const selectedTarget = elTargetSelect.value;
+      if (!selectedTarget) {
+        return alert('Silakan pilih Target DB yang ingin di-edit dari dropdown terlebih dahulu!');
+      }
+
+      const config = currentProject?.config || {};
+      const targetObj = config.target ? config.target[selectedTarget] : null;
+      const targetUri = typeof targetObj === 'object' ? (targetObj.uri || '') : (targetObj || '');
+
+      modalTargetTitle.innerHTML = `<i class="ri-edit-line"></i> Edit Target DB Connection ('${selectedTarget}')`;
+      modalTestResult.style.display = 'none';
+
+      const parsed = parseTargetUri(targetUri);
+      targetEngineSelect.value = parsed.engine || elDbEngineSelect.value;
+      newTargetName.value = selectedTarget;
+      targetHost.value = parsed.host || '';
+      targetPort.value = parsed.port || '';
+      targetUser.value = parsed.user || '';
+      targetPass.value = parsed.pass || '';
+      targetDbName.value = parsed.db || '';
+      newTargetUri.value = targetUri;
+
+      isUriManuallyEdited = true;
+      modalAddTarget.classList.add('show');
+    });
+  }
+
   // Delete Target Handler
   btnDeleteTarget.addEventListener('click', async () => {
     const selectedTarget = elTargetSelect.value;
@@ -879,9 +959,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // -------------------------------------------------------------
-  // MODAL HANDLERS & URI BUILDER: ADD TARGET
+  // MODAL HANDLERS & URI BUILDER: ADD / EDIT TARGET
   // -------------------------------------------------------------
   btnAddTarget.addEventListener('click', () => {
+    modalTargetTitle.innerHTML = `<i class="ri-database-2-line"></i> Add Database Target Connection`;
     targetEngineSelect.value = elDbEngineSelect.value;
     modalTestResult.style.display = 'none';
     isUriManuallyEdited = false;

@@ -77,6 +77,9 @@
         <button class="btn btn-secondary btn-sm" id="btnAddTarget" title="Add Database Target / Connection">
           <i class="ri-add-line"></i> + Add Target
         </button>
+        <button class="btn btn-warning btn-sm" id="btnEditTarget" title="Edit Selected DB Target">
+          <i class="ri-edit-line"></i> Edit Target
+        </button>
         <button class="btn btn-danger-outline btn-sm" id="btnDeleteTarget" title="Delete Selected DB Target">
           <i class="ri-delete-bin-line"></i> Hapus Target
         </button>
@@ -383,11 +386,11 @@
     </div>
   </div>
 
-  <!-- MODAL: ADD DATABASE TARGET / CONNECTION -->
+  <!-- MODAL: ADD / EDIT DATABASE TARGET / CONNECTION -->
   <div class="modal-backdrop" id="modalAddTarget">
     <div class="modal-card modal-large">
       <div class="modal-header">
-        <h3><i class="ri-database-2-line"></i> Add Database Target Connection</h3>
+        <h3 id="modalTargetTitle"><i class="ri-database-2-line"></i> Add / Edit Database Target Connection</h3>
         <button class="modal-close" id="btnCloseModalTarget">&times;</button>
       </div>
       <div class="modal-body">
@@ -449,7 +452,7 @@
         </button>
         <button class="btn btn-secondary" id="btnCancelModalTarget">Cancel</button>
         <button class="btn btn-primary" id="btnSubmitAddTarget">
-          <i class="ri-save-line"></i> Add Database Target
+          <i class="ri-save-line"></i> Save Database Target
         </button>
       </div>
     </div>

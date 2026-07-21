@@ -158,6 +158,15 @@ body.dark-theme {
   background-color: #059669;
 }
 
+#btnEditTarget {
+  background-color: #f59e0b;
+  color: #0f172a;
+  font-weight: 600;
+}
+#btnEditTarget:hover {
+  background-color: #d97706;
+}
+
 #btnDeleteTarget {
   background-color: #ef4444;
   color: white;
