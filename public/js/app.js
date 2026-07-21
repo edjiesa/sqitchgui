@@ -138,6 +138,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
   }
 
+  // Single change execution handler (Runs ONLY the specific change)
+  window.deploySingleChange = function(changeName) {
+    appendTerminalLog({ type: 'info', text: `▶️ Executing ONLY change '${changeName}' (single change mode)...` });
+    sendCommand('deploy', ['--from-change', changeName, '--to-change', changeName]);
+  };
+
   // -------------------------------------------------------------
   // API FETCHERS & PROJECT MANAGER
   // -------------------------------------------------------------
@@ -602,7 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <button class="btn btn-secondary btn-xs" onclick="window.selectChange('${item.name}')" title="Edit SQL">
                 <i class="ri-edit-line"></i> SQL
               </button>
-              <button class="btn btn-success btn-xs" onclick="window.deployUpTo('${item.name}')" title="Deploy up to here">
+              <button class="btn btn-success btn-xs" onclick="window.deploySingleChange('${item.name}')" title="Jalankan HANYA change ini saja (sqitch deploy --from-change ${item.name} --to-change ${item.name})">
                 <i class="ri-play-line"></i>
               </button>
             </div>
@@ -728,10 +734,6 @@ document.addEventListener('DOMContentLoaded', () => {
   btnRevert.addEventListener('click', () => sendCommand('revert'));
   btnVerify.addEventListener('click', () => sendCommand('verify'));
   btnStatus.addEventListener('click', () => sendCommand('status'));
-
-  window.deployUpTo = function(changeName) {
-    sendCommand('deploy', [changeName]);
-  };
 
   elSearchInput.addEventListener('input', () => {
     if (currentProject) renderPlanTable(currentProject.changes);
