@@ -302,6 +302,51 @@ app.post('/api/plan/toggle-change', (req, res) => {
   }
 });
 
+// Toggle multiple changes in sqitch.plan
+app.post('/api/plan/toggle-changes-bulk', (req, res) => {
+  try {
+    const { names, enable } = req.body;
+    if (!names || !Array.isArray(names)) return res.status(400).json({ success: false, error: 'Change names array is required' });
+
+    const planPath = path.join(currentProjectDir, 'sqitch.plan');
+    if (!fs.existsSync(planPath)) {
+      return res.status(400).json({ success: false, error: 'sqitch.plan file not found' });
+    }
+
+    let content = fs.readFileSync(planPath, 'utf8');
+    const lines = content.split(/\r?\n/);
+    const newLines = lines.map(line => {
+      const trimmed = line.trim();
+      
+      // Match active change line
+      const activeMatch = trimmed.match(/^([a-zA-Z0-9_\-\.\/]+)(?:\s+\[([^\]]+)\])?(?:\s+([0-9T:Z\-]+))?/);
+      if (activeMatch && names.includes(activeMatch[1])) {
+        if (!enable) {
+          return `# ${line}`;
+        }
+      }
+
+      // Match disabled commented change line (# name ...)
+      const commentedMatch = trimmed.match(/^#\s*([a-zA-Z0-9_\-\.\/]+)(?:\s+\[([^\]]+)\])?(?:\s+([0-9T:Z\-]+))?/);
+      if (commentedMatch && names.includes(commentedMatch[1])) {
+        if (enable) {
+          return line.replace(/^#\s*/, '');
+        }
+      }
+
+      return line;
+    });
+
+    fs.writeFileSync(planPath, newLines.join('\n'), 'utf8');
+    SqitchPlanParser.sanitizePlanFile(planPath);
+
+    const projectData = getMergedProjectData(currentProjectDir);
+    res.json({ success: true, project: projectData, count: names.length, enable });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Delete a change entry from sqitch.plan (and optionally associated SQL files)
 app.post('/api/plan/delete-change', (req, res) => {
   try {
@@ -806,6 +851,7 @@ wss.on('connection', (ws) => {
       const { action, target, mode = 'auto', extraArgs = [] } = data;
 
       if (!action) return;
+      if (action === 'ping') return; // Heartbeat to keep connection alive for long queries
 
       syncSharedTargetsToConfig(currentProjectDir);
       SqitchPlanParser.sanitizePlanFile(path.join(currentProjectDir, 'sqitch.plan'));
@@ -828,6 +874,10 @@ wss.on('connection', (ws) => {
     }
   });
 });
+
+// Disable timeout for long-running database queries (e.g., > 1 hour)
+server.timeout = 0;
+server.keepAliveTimeout = 0;
 
 server.listen(PORT, () => {
   console.log(`=======================================================`);

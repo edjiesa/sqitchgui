@@ -175,9 +175,22 @@
       <!-- TAB 1: PLAN TIMELINE -->
       <div class="tab-content active" id="tab-timeline">
         <div class="plan-timeline-container">
+          <div class="bulk-actions" style="padding: 10px; background: var(--bg-hover); display: flex; gap: 10px; align-items: center; border-bottom: 1px solid var(--border-color);">
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <input type="checkbox" id="checkAllChanges"> <span style="font-size: 13px; font-weight: 500;">Pilih Semua</span>
+            </label>
+            <div style="width: 1px; height: 20px; background: var(--border-color); margin: 0 5px;"></div>
+            <button class="btn btn-warning-outline btn-sm" id="btnBulkDisable" title="Nonaktifkan (comment) change yang dipilih">
+              <i class="ri-eye-off-line"></i> Nonaktifkan Terpilih
+            </button>
+            <button class="btn btn-success-outline btn-sm" id="btnBulkEnable" title="Aktifkan change yang dipilih">
+              <i class="ri-eye-line"></i> Aktifkan Terpilih
+            </button>
+          </div>
           <table class="plan-table">
             <thead>
               <tr>
+                <th width="40"></th>
                 <th width="50">#</th>
                 <th width="90">Type</th>
                 <th>Name</th>

@@ -127,6 +127,14 @@ document.addEventListener('DOMContentLoaded', () => {
       appendTerminalLog({ type: 'error', text: 'Log stream disconnected. Reconnecting in 3s...' });
       setTimeout(initWebSocket, 3000);
     };
+
+    // Heartbeat to keep connection alive during long queries (e.g. > 1 hour)
+    if (window.wsHeartbeat) clearInterval(window.wsHeartbeat);
+    window.wsHeartbeat = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'ping' }));
+      }
+    }, 30000);
   }
 
   function sendCommand(action, extraArgs = []) {
@@ -771,6 +779,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       return `
         <tr class="${rowClass}" style="${isDisabled ? 'opacity: 0.5; background: rgba(255,255,255,0.02);' : ''}">
+          <td><input type="checkbox" class="change-checkbox" value="${item.name}" ${isTag ? 'disabled' : ''}></td>
           <td><strong>${idx + 1}</strong></td>
           <td>${typeBadge}</td>
           <td>
@@ -1133,4 +1142,50 @@ document.addEventListener('DOMContentLoaded', () => {
       alert(e.message);
     }
   });
+  // Bulk Actions Logic
+  const checkAllChanges = document.getElementById('checkAllChanges');
+  const btnBulkDisable = document.getElementById('btnBulkDisable');
+  const btnBulkEnable = document.getElementById('btnBulkEnable');
+
+  if (checkAllChanges) {
+    checkAllChanges.addEventListener('change', (e) => {
+      const checkboxes = document.querySelectorAll('.change-checkbox:not([disabled])');
+      checkboxes.forEach(cb => cb.checked = e.target.checked);
+    });
+  }
+
+  async function performBulkToggle(enable) {
+    const selected = Array.from(document.querySelectorAll('.change-checkbox:checked')).map(cb => cb.value);
+    if (selected.length === 0) {
+      return alert('Pilih setidaknya satu change terlebih dahulu!');
+    }
+    
+    const actionStr = enable ? 'Mengaktifkan' : 'Menonaktifkan (# comment)';
+    appendTerminalLog({ type: 'info', text: `${actionStr} ${selected.length} changes secara massal...` });
+
+    try {
+      const res = await fetch('/api/plan/toggle-changes-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ names: selected, enable })
+      });
+      const data = await res.json();
+      if (data.success) {
+        renderProject(data.project);
+        appendTerminalLog({ type: 'success', text: `Berhasil ${actionStr} ${data.count} changes` });
+        if (checkAllChanges) checkAllChanges.checked = false;
+      } else {
+        alert(data.error || 'Gagal mengubah status bulk');
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  if (btnBulkDisable) {
+    btnBulkDisable.addEventListener('click', () => performBulkToggle(false));
+  }
+  if (btnBulkEnable) {
+    btnBulkEnable.addEventListener('click', () => performBulkToggle(true));
+  }
 });
