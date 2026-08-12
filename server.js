@@ -879,8 +879,8 @@ wss.on('connection', (ws) => {
 server.timeout = 0;
 server.keepAliveTimeout = 0;
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`=======================================================`);
-  console.log(`  Sqitch Studio GUI is running on http://localhost:${PORT}`);
+  console.log(`  Sqitch Studio GUI is running on http://0.0.0.0:${PORT}`);
   console.log(`=======================================================`);
 });
